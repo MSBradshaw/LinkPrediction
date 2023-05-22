@@ -21,11 +21,32 @@ def read_edgelist(edgelist):
 
 # function to remove non-g2p edges from one G
 def remove_non_g2p(G):
+    # count the number of each edge type
+    HPO2HPO = 0
+    STRING2STRING = 0
+    STRING2HPO = 0
+    for edge in G.edges():
+        n_hpo = sum([ 'HP:' in n for n in edge])
+        n_string = sum([ 'STRING:' in n for n in edge])
+        if n_hpo == 2:
+            HPO2HPO += 1
+        elif n_string == 2:
+            STRING2STRING += 1
+        elif n_hpo == 1 and n_string == 1:
+            STRING2HPO += 1
+        else:
+            print('ERROR: edge does not match any of the patterns',edge)
+    print('HPO2HPO',HPO2HPO)
+    print('STRING2STRING',STRING2STRING)
+    print('STRING2HPO',STRING2HPO)
+
     # exactly one of the edges must contain the substring 'HP:'
     for edge in G.edges():
-        if sum([ 'HP:' in n for n in edge]) != 1:
-            # the edge is PPI or HPO only
-            G.remove_edge(*edge)
+        n_hpo = sum([ 'HP:' in n for n in edge])
+        n_string = sum([ 'STRING:' in n for n in edge])
+        if n_hpo !=1 and n_string != 1:
+            # the edge is not g2p, remove it
+            G.remove_edge(edge[0],edge[1])
     return G
 
 # remove any nodes in G2 that are not in G1
