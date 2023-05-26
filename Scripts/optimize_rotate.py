@@ -66,4 +66,4 @@ hpo_pipeline_result = hpo_pipeline(
     device='cuda',
 )
 
-pipeline_result.save_to_directory('PyKeenOut/rotatE')
+hpo_pipeline_result.save_to_directory('PyKeenOut/rotatE')
