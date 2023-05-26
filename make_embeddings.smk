@@ -31,7 +31,7 @@ rule all:
         'ELs_for_Rotate/String_HPO_2019.all_hpo/valid.txt',
         'ELs_for_Rotate/String_HPO_2019.all_hpo/test.txt',
         'ELs_for_Rotate/String_HPO_2020.all_hpo/valid.txt',
-        'ELs_for_Rotate/String_HPO_2020.all_hpo/test.txt'
+        'ELs_for_Rotate/String_HPO_2020.all_hpo/test.txt',
 
 # generate embeddings with node2vec with a variety of parameter options
 rule node2vec:
@@ -152,6 +152,3 @@ rule add_entities:
         # create entities.dict
         python Scripts/create_entities_file.py --train {input.train} --validate {input.valid} --test {input.test} --mapping {input.node_names} --output {output.ents}
         """
-
-# conda activate link
-# rj -n 'LP-smk-embeddings' -t 72:00:00 -T 64 -m 500G -p sandbox  -c 'snakemake -s make_embeddings.smk --cores 2'
