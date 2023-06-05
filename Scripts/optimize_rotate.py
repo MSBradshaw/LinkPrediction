@@ -16,6 +16,8 @@ TEST_PATH =  '/scratch/Shares/layer/workspace/michael_sandbox/LinkPrediction/ELs
 TRAIN_PATH = '/scratch/Shares/layer/workspace/michael_sandbox/LinkPrediction/ELs_for_Rotate/String_HPO_2019.all_hpo/train.txt'
 VALID_PATH = '/scratch/Shares/layer/workspace/michael_sandbox/LinkPrediction/ELs_for_Rotate/String_HPO_2019.all_hpo/valid.txt'
 
+study_name = "rotate_hpo_string_2019"  # Unique identifier of the study.
+storage_name = "sqlite:///{}.db".format(study_name) # this for a sqlite database in the current working directory
 
 hpo_pipeline_result = hpo_pipeline(
     n_trials=30,
@@ -61,9 +63,14 @@ hpo_pipeline_result = hpo_pipeline(
             ),
         ),
     training=TRAIN_PATH,
-    testing=VALID_PATH,
+    testing=TEST_PATH,
+    validation=VALID_PATH,
     model='rotate',
     device='cuda',
+    storage='sqlite:///foo.db',
+    load_if_exists=True,
+    study_name=study_name,
+    save_model_directory='PyKeenOut/rotatE',
 )
 
 hpo_pipeline_result.save_to_directory('PyKeenOut/rotatE')
