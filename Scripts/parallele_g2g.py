@@ -143,6 +143,7 @@ query_relation: str = "STRING2STRING"
 
 all_female_g2g_percentiles = {}
 all_male_g2g_percentiles = {}
+all_genes_g2g_percentiles = {}
 
 predictions_df: pd.DataFrame = get_predictions_tail(
     list(genes)[100],
@@ -178,13 +179,18 @@ for i,gene in enumerate(genes):
         print('key error', gene)
         continue
     predictions_df['percentile'] = predictions_df['score'].rank(pct=True)
-    all_female_g2g_percentiles = update_hpo_percentiles(all_female_g2g_percentiles, predictions_df, female_genes)
-    all_male_g2g_percentiles = update_hpo_percentiles(all_male_g2g_percentiles, predictions_df, male_genes)
-    print(len(all_female_g2g_percentiles))
-    print(len(all_male_g2g_percentiles))
-    print(len(all_female_g2g_percentiles[female_genes[0]]))
-    print(len(all_male_g2g_percentiles[male_genes[0]]))
+    # all_female_g2g_percentiles = update_hpo_percentiles(all_female_g2g_percentiles, predictions_df, female_genes)
+    all_genes_g2g_percentiles = update_hpo_percentiles(all_genes_g2g_percentiles, predictions_df, genes)
+    # all_male_g2g_percentiles = update_hpo_percentiles(all_male_g2g_percentiles, predictions_df, male_genes)
+
+    # print(len(all_female_g2g_percentiles))
+    # print(len(all_male_g2g_percentiles))
+    # print(len(all_female_g2g_percentiles[female_genes[0]]))
+    # print(len(all_male_g2g_percentiles[male_genes[0]]))
+    print(len(all_genes_g2g_percentiles['STRING:HNRNPA2B1']))
+    # print(len(all_genes_g2g_percentiles[list(genes)[0]]))
     print()
 
-pickle.dump(all_female_g2g_percentiles, open('G2G_Shards/all_female_g2g_percentiles.part_{}.pkl'.format(str(start) + '_' + str(end)),'wb'))
-pickle.dump(all_male_g2g_percentiles, open('G2G_Shards/all_male_g2g_percentiles.part_{}.pkl'.format(str(start) + '_' + str(end)),'wb'))
+# pickle.dump(all_female_g2g_percentiles, open('G2G_Shards/all_female_g2g_percentiles.part_{}.pkl'.format(str(start) + '_' + str(end)),'wb'))
+# pickle.dump(all_male_g2g_percentiles, open('G2G_Shards/all_male_g2g_percentiles.part_{}.pkl'.format(str(start) + '_' + str(end)),'wb'))
+pickle.dump(all_genes_g2g_percentiles, open('G2G_Shards_All/all_genes_g2g_percentiles.part_{}.pkl'.format(str(start) + '_' + str(end)),'wb'))

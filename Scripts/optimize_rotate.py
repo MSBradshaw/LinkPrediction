@@ -71,6 +71,10 @@ hpo_pipeline_result = hpo_pipeline(
     load_if_exists=True,
     study_name=study_name,
     save_model_directory='PyKeenOut/rotatE',
+    save_model=True,
+    stopper='early',
+    stopper_kwargs={'frequency':10, 'patience':2, 'relative_delta':0.002},
+    loss="NSSA",
 )
 
 hpo_pipeline_result.save_to_directory('PyKeenOut/rotatE')
