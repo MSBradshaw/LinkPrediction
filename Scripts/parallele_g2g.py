@@ -76,6 +76,9 @@ for line in open(TRAIN_PATH,'r'):
         genes.add(row[0])
     if 'STRING:' in row[2]:
         genes.add(row[2])
+genes = list(genes)
+# sort the genes
+genes.sort()
 print('# genes', len(genes))
 
 def update_hpo_percentiles(hp_dict: dict,df: pd.DataFrame, hpos: list) -> dict: 
