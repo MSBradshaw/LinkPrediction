@@ -8,6 +8,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Filter variants with AF > 0 in a single population')
     parser.add_argument('-i', '--input', type=str, metavar='', required=True, help='Input file')
     parser.add_argument('-o', '--output', type=str, metavar='', required=True, help='Output file')
+    parser.add_argument('-m', '--mode', type=str, metavar='', required=False, help='Mode default all "a", pathogenic "p"')
     args = parser.parse_args()
     return args
 
@@ -17,6 +18,8 @@ def main():
     output_file = args.output
     columns = None
     pop_columns = None
+    all_56s = set()
+    count_56s = {}
     with open(output_file, 'w') as out:
         for line in open(input_file, 'r'):
             line = line.strip()
@@ -51,10 +54,22 @@ def main():
                     outline_list.append(row[i])
                 # get the gene symbol from the vep column
                 vep = row[columns.index('vep')]
-                gene = vep.split('|')[3]
+                gene = vep.split('|')[3] # index of the gene symbol
+                if args.mode == 'p':
+                    # if the mode is pathogenic, only keep genes with a pathogenic variant
+                    all_56s.add(vep.split('|')[56])
+                    if vep.split('|')[56] not in count_56s:
+                        count_56s[vep.split('|')[56]] = 0
+                    count_56s[vep.split('|')[56]] += 1
+                    if 'pathogenic' != vep.split('|')[56]: # 56 is the CLIN_SIG column index
+                        # if in pathogenic mode and the variant is not pathogenic, skip
+                        continue
                 outline_list.append(gene)
                 outline = '\t'.join(outline_list)
                 out.write(outline + '\n')
+    print('All CLIN_SIG observed values', all_56s)
+    for key in count_56s:
+        print(key, count_56s[key])
             
 
         
