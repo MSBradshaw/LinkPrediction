@@ -179,7 +179,7 @@ def two_group_g2p_ranking_test(prefix,hpos_a,hpos_b,label_a,label_b,data,model,d
     flattened_percentiles[label_b].sort()
     print(flattened_percentiles[label_a])
     print(flattened_percentiles[label_b])
-    U1, p = kruskal(flattened_percentiles[label_a], flattened_percentiles[label_b], method="exact")
+    U1, p = kruskal(flattened_percentiles[label_a], flattened_percentiles[label_b])
     print('p-value', p)
 
     # what percent of the genes are in the top 10%?
@@ -187,7 +187,7 @@ def two_group_g2p_ranking_test(prefix,hpos_a,hpos_b,label_a,label_b,data,model,d
     print(label_a, len([x for x in flattened_percentiles[label_a] if x > 0.8])/len(flattened_percentiles[label_a]))
     print(label_b, len([x for x in flattened_percentiles[label_b] if x > 0.8])/len(flattened_percentiles[label_b]))
 
-    U1_8, p_8 = kruskal([x for x in flattened_percentiles[label_a] if x >= .8], [x for x in flattened_percentiles[label_b] if x >= .8], method="exact")
+    U1_8, p_8 = kruskal([x for x in flattened_percentiles[label_a] if x >= .8], [x for x in flattened_percentiles[label_b] if x >= .8])
     print('p-value for scores > 0.8', p_8)
 
     return p
