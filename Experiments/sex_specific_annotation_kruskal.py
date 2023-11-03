@@ -122,7 +122,7 @@ def get_group_speficic_percentiles(all_genes,x_percentiles,new_edges_tp1):
                 specific_phenotypes2genes[term].append(x_percentiles[term][gi])
     return specific_phenotypes2genes
 
-def two_group_g2p_ranking_test(prefix,hpos_a,hpos_b,label_a,label_b,data,model,degs,train_triples,test_triples,valid_triples,all_genes):
+def two_group_g2p_ranking_test(prefix,hpos_a,hpos_b,label_a,label_b,data,model,degs,train_triples,test_triples,valid_triples,all_genes,relation):
     # get the t edge list, this was the validation set for 2019
     t_el = '../ELs_for_Rotate/String_HPO_2019.all_hpo/test.txt'
     # load t_el as a set of string
@@ -133,8 +133,8 @@ def two_group_g2p_ranking_test(prefix,hpos_a,hpos_b,label_a,label_b,data,model,d
     tp1_el_set = set([split_sort_return_str(line) for line in open(tp1_el,'r')])
     new_edges_tp1 = tp1_el_set.difference(t_el_set)
 
-    a_percentiles = get_percentile_dict(hpos_a,'STRING2HPO',data,model,degs,train_triples,test_triples,valid_triples)
-    b_percentiles = get_percentile_dict(hpos_b,'STRING2HPO',data,model,degs,train_triples,test_triples,valid_triples)
+    a_percentiles = get_percentile_dict(hpos_a,relation,data,model,degs,train_triples,test_triples,valid_triples)
+    b_percentiles = get_percentile_dict(hpos_b,relation,data,model,degs,train_triples,test_triples,valid_triples)
     a_specific_percentiles = get_group_speficic_percentiles(all_genes,a_percentiles,new_edges_tp1)
     b_specific_percentiles = get_group_speficic_percentiles(all_genes,b_percentiles,new_edges_tp1)
 
@@ -147,11 +147,12 @@ def two_group_g2p_ranking_test(prefix,hpos_a,hpos_b,label_a,label_b,data,model,d
         flattened_percentiles[label_b] += list(b_specific_percentiles[key])
 
     fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-    axes[0].hist(flattened_percentiles[label_a],bins=10)
+    bins = np.arange(0, 1.1, 0.1)
+    axes[0].hist(flattened_percentiles[label_a],bins=bins)
     axes[0].set_title(label_a)
     axes[0].set_xlabel('Percentile')
     axes[0].set_ylabel('Frequency')
-    axes[1].hist(flattened_percentiles[label_b],bins=10)
+    axes[1].hist(flattened_percentiles[label_b],bins=bins)
     axes[1].set_title(label_b)
     axes[1].set_xlabel('Percentile')
     axes[1].set_ylabel('Frequency')
@@ -179,7 +180,7 @@ def two_group_g2p_ranking_test(prefix,hpos_a,hpos_b,label_a,label_b,data,model,d
     flattened_percentiles[label_b].sort()
     print(flattened_percentiles[label_a])
     print(flattened_percentiles[label_b])
-    U1, p = kruskal(flattened_percentiles[label_a], flattened_percentiles[label_b], method="exact")
+    U1, p = kruskal(flattened_percentiles[label_a], flattened_percentiles[label_b])
     print('p-value', p)
 
     # what percent of the genes are in the top 10%?
@@ -187,26 +188,67 @@ def two_group_g2p_ranking_test(prefix,hpos_a,hpos_b,label_a,label_b,data,model,d
     print(label_a, len([x for x in flattened_percentiles[label_a] if x > 0.8])/len(flattened_percentiles[label_a]))
     print(label_b, len([x for x in flattened_percentiles[label_b] if x > 0.8])/len(flattened_percentiles[label_b]))
 
-    U1_8, p_8 = kruskal([x for x in flattened_percentiles[label_a] if x >= .8], [x for x in flattened_percentiles[label_b] if x >= .8], method="exact")
+    U1_8, p_8 = kruskal([x for x in flattened_percentiles[label_a] if x >= .8], [x for x in flattened_percentiles[label_b] if x >= .8])
     print('p-value for scores > 0.8', p_8)
 
     return p
     
 
+
+
 female_annotated_hpos: list = [ line.strip() for line in open('../Resources/just_female_hpos.txt')]
 print('# female terms', len(female_annotated_hpos))
 male_annotated_hpos: list = [ line.strip() for line in open('../Resources/just_male_hpos.txt')]
-print('# female terms', len(male_annotated_hpos))
+print('# male terms', len(male_annotated_hpos))
 
-annotated_p = two_group_g2p_ranking_test(prefix='annotated',
-                            hpos_a=female_annotated_hpos,
-                            hpos_b=male_annotated_hpos,
-                            label_a='female',
-                            label_b='male',
+female_terms = []
+male_terms = []
+for line in open('../SexCurationResults/file_1686685843.3780549.csv','r'):
+    row = line.strip().split(',')
+    if row[2] == 'm':
+        male_terms.append(row[1])
+    elif row[2] == 'f':
+        female_terms.append(row[1])
+    elif row[2] == 'o':
+        pass
+    else: 
+        print('error', row)
+
+print('Number of female terms:',len(female_terms))
+print('Number of male terms:',len(male_terms))
+print(genes[:10])
+
+gene_group_df = pd.read_csv('../Resources/supplementary_dataset_13_gene_lists.tsv',sep='\t')
+
+for group in gene_group_df['gene_list'].unique():
+    print(group)
+    group_genes = [ 'STRING:' + x for x in gene_group_df[gene_group_df['gene_list'] == group]['gene']]
+    print('Number genes in group:',len(group_genes))
+    
+    annotated_p = two_group_g2p_ranking_test(prefix=group,
+        hpos_a=group_genes,
+        hpos_b=female_terms,
+        label_a=group,
+        label_b='female_hpo',
+        data=data,
+        model=model,
+        degs=degs,
+        train_triples=train_triples,
+        test_triples=test_triples,
+        valid_triples=valid_triples,
+        all_genes=genes,
+        relation='STRING2STRING')
+
+    annotated_p = two_group_g2p_ranking_test(prefix=group,
+                            hpos_a=group_genes,
+                            hpos_b=male_terms,
+                            label_a=group,
+                            label_b='male_hpo',
                             data=data,
                             model=model,
                             degs=degs,
                             train_triples=train_triples,
                             test_triples=test_triples,
                             valid_triples=valid_triples,
-                            all_genes=genes)
+                            all_genes=genes,
+                            relation='STRING2STRING')
