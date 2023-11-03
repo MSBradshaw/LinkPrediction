@@ -7,7 +7,7 @@ from pykeen.pipeline import pipeline
 from pykeen.datasets.base import PathDataset
 from pykeen.pipeline import pipeline
 from pykeen.hpo import hpo_pipeline
-from optuna.samplers import RandomSampler
+from optuna.samplers import RandomSampler, QMCSampler
 import torch
 
 job_id = ''
@@ -26,7 +26,8 @@ storage_name = "sqlite:///{}.db".format(study_name) # this for a sqlite database
 hpo_pipeline_result = hpo_pipeline(
     # n_trials=30,
     n_trials=4,
-    sampler=RandomSampler,
+    # sampler=RandomSampler, # this was the original one I used, commenting out to try something new
+    sampler=QMCSampler,
 
     model_kwargs={
             "random_seed": 42,
