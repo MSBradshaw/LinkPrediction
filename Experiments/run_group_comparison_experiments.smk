@@ -2,6 +2,11 @@ import pandas as pd
 import networkx as nx
 import random
 
+import sys
+sys.path.append('Scripts/')
+
+from compare_groups_test_omatic import plot_two_groups_hists, kruskal_test
+
 POPs = ['nfe_onf','afr','amr','eas']
 
 # '00', '01' ... '99'
@@ -18,7 +23,9 @@ rule all:
         'GroupComparisonResults/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.csv',
         expand('GroupComparisonResults/SexDiffExpShards/sex_diff_genes_mondo_{i}_Female_v_Male_g2p_rankings_hist.csv',i=SEX_SHARDS),
         'work_comparison/cancer_genes.txt',
-        'GroupComparisonResults/CancerVsRandom/monarch_transE_Cancer_v_Random_500_42_g2p_rankings_hist.csv'
+        'GroupComparisonResults/CancerVsRandom/monarch_transE_Cancer_v_Random_500_42_g2p_rankings_hist.csv',
+        'GroupComparisonResults/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.png',
+        'GroupComparisonResults/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.txt'
 
 def load_ancestry_hpo_file(_f):
     _hpos = []
@@ -215,6 +222,19 @@ rule combine_sex_shards:
         echo ',head_label,relation_label,tail_label,rank,head_degree,tail_degree,population' > {output}
         cat {input} | grep -v 'head_label' >> {output}
         """
+
+rule sex_hist_and_kruskal:
+    input:
+        'GroupComparisonResults/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.csv'
+    output:
+        'GroupComparisonResults/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.png',
+        'GroupComparisonResults/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.txt'
+    run:
+        df = pd.read_csv(input[0])
+        female_ranks = list(df[df['population'] =='Female']['rank'])
+        male_ranks = list(df[df['population'] =='Male']['rank'])
+        plot_two_groups_hists(female_ranks,male_ranks,'Female','Male','GroupComparisonResults/SexDiffExp/sex_diff_genes_mondo_')
+        kruskal_test(female_ranks,male_ranks,'Female','Male','GroupComparisonResults/SexDiffExp/sex_diff_genes_mondo_')
 
 rule make_cancer_gene_list:
     output:
