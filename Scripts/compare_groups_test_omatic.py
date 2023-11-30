@@ -26,6 +26,7 @@ from typing import List
 from pykeen import predict
 import os
 import pickle
+import warnings
 
 def get_args():
     parser = argparse.ArgumentParser(description='Run the test-omatic experiment')
@@ -41,6 +42,7 @@ def get_args():
     parser.add_argument('--test_triples', type=str, required=True, help='test triple list')
     parser.add_argument('--model', type=str, required=True, help='trained pykeen model in .pkl format')
     parser.add_argument('--output_prefix', type=str, required=True, help='prefix for output files')
+    parser.add_argument('--progress_bar', dest='progress_bar', action='store_true',default=False, help='show progress bar')
     args = parser.parse_args()
     return args
 
@@ -73,24 +75,42 @@ def get_scores_for_edges(terms: List[str],
                          population: str,
                          prefix_of_predicted: str,
                          prediction_target: str,
-                         data: PathDataset) -> (List[float], pd.DataFrame):
+                         data: PathDataset,
+                         progress_bar: bool = False) -> (List[float], pd.DataFrame):
     """
     Make predictions for each term and return the score percentiles (higher is better) of test edges for each term
     """
-    terms_test_edges = get_test_edges_for_term(terms,relation,test_triples, progress_bar=False)
+    terms_test_edges = get_test_edges_for_term(terms,relation,test_triples, progress_bar=progress_bar)
+
+    target_edge_index = None
     if prediction_target == 'head':
         og_col = 'tail_label'
         new_col = 'head_label'
+        target_edge_index = 0
     elif prediction_target == 'tail':
         og_col = 'head_label'
         new_col = 'tail_label'
+        target_edge_index = 2
     else:
         raise ValueError('prediction_target must be "head" or "tail"')
     # get the predictions for each term (hard coded as one for now)
-    for term in terms:
-        predictions_df = predict.predict_target(model=model, head=None, relation=relation, tail=term, triples_factory=data).df
+    for i,term in enumerate(terms):
+        try:
+            if i % (len(terms) // 50) == 0 and progress_bar:
+                print(f'{i} / {len(terms)}')
+        except ZeroDivisionError:
+            pass
+        try:
+            predictions_df = predict.predict_target(model=model, head=None, relation=relation, tail=term, triples_factory=data).df
+        except KeyError as e:
+            print(f'KeyError: {e}')
+            # raise warning with the error message
+            warnings.warn(str(e))
+            continue
         # add labels and remove non-gene predictions
         predictions_df = annotate(df=predictions_df,data=data,og_label=term,og_col=og_col,new_col=new_col,relation=relation, prefix_of_predicted=prefix_of_predicted,degs=degs)
+        # remove rows there head and tail are the same, this is a self loop
+        predictions_df = predictions_df[predictions_df['head_label'] != predictions_df['tail_label']]
         # sort the predictions by score
         predictions_df = predictions_df.sort_values(by=['score'],ascending=False)
         # assign a percentile to each prediction
@@ -103,7 +123,7 @@ def get_scores_for_edges(terms: List[str],
             if edge[1] != relation:
                 continue
             # get the score for the edge, since these edges are directed in MONDO, the format should be gene,relation,term
-            sub = predictions_df[predictions_df['head_label'] == edge[0]]
+            sub = predictions_df[predictions_df[new_col] == edge[target_edge_index]]
             # check sub shape
             if sub.shape[0] == 0:
                 # this means that the edges was in the test set but not in the training set
@@ -167,10 +187,11 @@ def kruskal_test(scores_a: List[float],
     """
     U1, p = kruskal(scores_a, scores_b)
     print(f'Kruskal-Wallis H test p-value: {p}')
-
+    
     # for scores > 0.80
     scores_a_80 = [x for x in scores_a if x > 0.80]
     scores_b_80 = [x for x in scores_b if x > 0.80]
+
     U1_8, p_8 = kruskal(scores_a_80, scores_b_80)
     print(f'Kruskal-Wallis H test p-value (percental > .8): {p}')
 
@@ -193,7 +214,8 @@ def compare_groups_ranking_experiment(terms_a: List[str],
                                       prefix: str,
                                       prefix_of_predicted: str,
                                       prediction_target: str,
-                                      data: PathDataset):
+                                      data: PathDataset,
+                                      progress_bar: bool = False):
     """
     Calculate scores for terms in groups A and B
     Run the Kruskal-Wallis H test on the two groups of scores
@@ -203,8 +225,10 @@ def compare_groups_ranking_experiment(terms_a: List[str],
     Report p-values
     """ 
     pd.options.mode.chained_assignment = None # silence the SettingWithCopyWarning
-    scores_a, df_a = get_scores_for_edges(terms_a, relation, model, degs, train_triples, test_triples, validation_triples, label_a, prefix_of_predicted=prefix_of_predicted, prediction_target=prediction_target, data=data)
-    scores_b, df_b = get_scores_for_edges(terms_b, relation, model, degs, train_triples, test_triples, validation_triples, label_b, prefix_of_predicted=prefix_of_predicted, prediction_target=prediction_target, data=data)
+    print('Calculating scores for group A')
+    scores_a, df_a = get_scores_for_edges(terms_a, relation, model, degs, train_triples, test_triples, validation_triples, label_a, prefix_of_predicted=prefix_of_predicted, prediction_target=prediction_target, data=data, progress_bar=progress_bar)
+    print('Calculating scores for group B')
+    scores_b, df_b = get_scores_for_edges(terms_b, relation, model, degs, train_triples, test_triples, validation_triples, label_b, prefix_of_predicted=prefix_of_predicted, prediction_target=prediction_target, data=data, progress_bar=progress_bar)
     df = pd.concat([df_a,df_b])
     df.to_csv('{}{}_v_{}_g2p_rankings_hist.csv'.format(prefix,label_a,label_b))
     kruskal_test(scores_a, scores_b, label_a, label_b,prefix)
@@ -329,7 +353,8 @@ def main():
                                           prefix=args.output_prefix,
                                           prefix_of_predicted=args.prediction_prefix,
                                           prediction_target=args.prediction_target,
-                                          data=data)
+                                          data=data,
+                                          progress_bar=args.progress_bar)
 
 if __name__ == '__main__':
     main()
