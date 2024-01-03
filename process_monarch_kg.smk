@@ -1,3 +1,5 @@
+import random
+
 """
 The purpose of this pipeline is to download and process the Monarch KG data so that it is in the triple format needed for training KGE models with PyKeen
 """
@@ -17,80 +19,67 @@ rule all:
 
 rule download:
     output:
-        expand("Monarch_KG/monarch-kg_{type}.{date}.tsv", type=types, date=dates)
+        nodes="Monarch_KG/monarch-kg_nodes.2023-12-16.tsv",
+        edges="Monarch_KG/monarch-kg_edges.2023-12-16.tsv"
     shell:
         """
         mkdir -p Monarch_KG/
-        wget https://data.monarchinitiative.org/monarch-kg-dev/2022-09-27/monarch-kg.tar.gz
+        wget https://data.monarchinitiative.org/monarch-kg-dev/2023-12-16/monarch-kg.tar.gz
         tar -xf monarch-kg.tar.gz
-        mv monarch-kg_edges.tsv Monarch_KG/monarch-kg_edges.2022-09-27.tsv
-        mv monarch-kg_nodes.tsv Monarch_KG/monarch-kg_nodes.2022-09-27.tsv
-        rm monarch-kg.tar.gz
-        
-        wget https://data.monarchinitiative.org/monarch-kg-dev/2023-03-16/monarch-kg.tar.gz
-        tar -xf monarch-kg.tar.gz
-        mv monarch-kg_edges.tsv Monarch_KG/monarch-kg_edges.2023-03-16.tsv
-        mv monarch-kg_nodes.tsv Monarch_KG/monarch-kg_nodes.2023-03-16.tsv
-        rm monarch-kg.tar.gz
-        
-
-        wget https://data.monarchinitiative.org/monarch-kg-dev/2023-09-28/monarch-kg.tar.gz
-        tar -xf monarch-kg.tar.gz
-        mv monarch-kg_edges.tsv Monarch_KG/monarch-kg_edges.2023-09-28.tsv
-        mv monarch-kg_nodes.tsv Monarch_KG/monarch-kg_nodes.2023-09-28.tsv
-        rm monarch-kg.tar.gz
-
-        wget https://data.monarchinitiative.org/monarch-kg-dev/2022-03-07/monarch-kg.tar.gz
-        tar -xf monarch-kg.tar.gz
-        mv monarch-kg_edges.tsv Monarch_KG/monarch-kg_edges.2022-03-07.tsv
-        mv monarch-kg_nodes.tsv Monarch_KG/monarch-kg_nodes.2022-03-07.tsv
+        mv monarch-kg_edges.tsv Monarch_KG/monarch-kg_edges.2023-12-16.tsv
+        mv monarch-kg_nodes.tsv Monarch_KG/monarch-kg_nodes.2023-12-16.tsv
         rm monarch-kg.tar.gz
         """
 
-rule remove_nodes_and_edges_not_in_first:
+rule create_triples:
     input:
-        train_nodes="Monarch_KG/monarch-kg_nodes.2022-09-27.tsv",
-        train="Monarch_KG/monarch-kg_edges.2022-09-27.tsv",
-        valid="Monarch_KG/monarch-kg_edges.2023-03-16.tsv",
-        test="Monarch_KG/monarch-kg_edges.2023-09-28.tsv"
+        nodes="Monarch_KG/monarch-kg_nodes.2023-12-16.tsv",
+        edges="Monarch_KG/monarch-kg_edges.2023-12-16.tsv"
     output:
-        train="ELs_for_Rotate/Monarch_KG/train.txt",
-        test="ELs_for_Rotate/Monarch_KG/test.txt",
-        valid="ELs_for_Rotate/Monarch_KG/valid.txt"
+        'Monarch_KG/monarch-kg_triples.2023-12-16.tsv'
     shell:
         """
         mkdir -p ELs_for_Rotate
         mkdir -p ELs_for_Rotate/Monarch_KG
 
-        python Scripts/filter_edges_based_on_node_list.py -n {input.train_nodes} -e {input.train} -o {output.train}
-        python Scripts/filter_edges_based_on_node_list.py -n {input.train_nodes} -e {input.valid} -o {output.valid}.tmp
-        python Scripts/filter_edges_based_on_node_list.py -n {input.train_nodes} -e {input.test} -o {output.test}.tmp -s 17 -p 2 -b 18
-
-        # remove semantic trips from valid that are in train
-        python Scripts/remove_preexisting_triples.py -i {input.train} -n {output.valid}.tmp -o {output.valid}
-        # remove triples from test that are in train or valid
-        python Scripts/remove_preexisting_triples.py -i {input.train} -n {output.test}.tmp -o {output.test}.tmp2
-        python Scripts/remove_preexisting_triples.py -i {output.valid} -n {output.test}.tmp2 -o {output.test}
-
-        rm ELs_for_Rotate/Monarch_KG/*.tmp
-        rm ELs_for_Rotate/Monarch_KG/*.tmp2
+        cat Monarch_KG/monarch-kg_edges.2023-12-16.tsv | cut -f3,18,19 | awk '{{print $2"\t"$1"\t"$3}}' | grep -v subject > {output}
         """
 
+rule split_triples:
+    input:
+        "Monarch_KG/monarch-kg_triples.2023-12-16.tsv"
+    output:
+        train="ELs_for_Rotate/Monarch_KG/train.txt",
+        valid="ELs_for_Rotate/Monarch_KG/valid.txt",
+        test="ELs_for_Rotate/Monarch_KG/test.txt"
+    run:
+        # split the triples into train, valid, and test with .8, .1, .1 split
+        random.seed(42)
+        with open(output.train,'w') as train, open(output.valid,'w') as valid, open(output.test,'w') as test:
+            for line in open(input[0],'r'):
+                rand = random.random()
+                if rand < .8:
+                    train.write(line)
+                elif rand < .9:
+                    valid.write(line)
+                else:
+                    test.write(line)
+    
 rule map_HGNC_to_ENSG:
     input:
-        "Resources/monarch-kg_nodes.sep_22.tsv",
+        "Monarch_KG/monarch-kg_nodes.2023-12-16.tsv",
     output:
         "Resources/HGNC_to_ENSG.tsv",
     run:
         hgnc_i = 0
-        ensg_i = 7
+        ensg_i = 3
         h2e = {}
         for line in open(input[0],'r'):
             row = line.strip().split('\t')
             ensgs = [x for x in row[ensg_i].split('|') if x.startswith('ENSEMBL')]
             if len(ensgs) == 0:
                 continue
-            h2e[row[hgnc_i]] = row[ensg_i][0]
+            h2e[row[hgnc_i]] = ensgs[0]
         with open(output[0],'w') as out:
             for hgnc in h2e:
                 out.write(f"{hgnc}\t{h2e[hgnc]}\n")
@@ -108,6 +97,8 @@ rule convert_huri_to_hgnc:
             hgnc, ensg = line.strip().split('\t')
             hgnc_to_ensg[ensg] = hgnc
         # convert all huri triples to hgnc ids
+        skipped_mappings = 0
+        non_skipped = 0 
         with open(output[0],'w') as out:
             for line in open(input.huri,'r'):
                 row = line.strip().split('\t')
@@ -116,9 +107,19 @@ rule convert_huri_to_hgnc:
                 if row[0].startswith('ENSEMBL') and row[1].startswith('ENSEMBL'):
                     if row[0] in hgnc_to_ensg:
                         hgnc1 = hgnc_to_ensg[row[0]]
+                        non_skipped += 1
+                    else:
+                        skipped_mappings += 1
+                        continue
                     if row[1] in hgnc_to_ensg:
                         hgnc2 = hgnc_to_ensg[row[1]]
+                        non_skipped += 1
+                    else:
+                        skipped_mappings += 1
+                        continue
                     out.write(f"{hgnc1}\tbiolink:interacts_with\t{hgnc2}\n")
+        print(f"------------------------------Skipped {skipped_mappings} mappings------------------------------")
+        print(f"------------------------------Converted {non_skipped} mappings------------------------------")
 
 rule make_monarch_HuRI:
     input:
