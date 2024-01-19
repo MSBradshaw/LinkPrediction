@@ -67,7 +67,7 @@ rule do_asvd_comparisons:
         test =  'ELs_for_Rotate/Monarch_KG/test.txt',
         train = 'ELs_for_Rotate/Monarch_KG/train.txt',
         validation = 'ELs_for_Rotate/Monarch_KG/valid.txt',
-        model = 'Models/transE_monarch.pkl'
+        model = 'Models/TransE_monarch_kg_1.trained_model.pkl'
     output:
         'GroupComparisonResults/ASVD/euro_afr_gene_causes_mondo_European_v_African_g2p_rankings_hist.csv',
         'GroupComparisonResults/ASVD/euro_latino_gene_causes_mondo_European_v_Latino_g2p_rankings_hist.csv',
@@ -142,7 +142,7 @@ rule make_sex_differentially_expressed_genes:
 #         test =  'ELs_for_Rotate/Monarch_KG/test.txt',
 #         train = 'ELs_for_Rotate/Monarch_KG/train.txt',
 #         validation = 'ELs_for_Rotate/Monarch_KG/valid.txt',
-#         model = 'Models/transE_monarch.pkl'
+#         model = 'Models/TransE_monarch_kg_1.trained_model.pkl'
 #     output:
 #         'GroupComparisonResults/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.csv'
 #     threads: 2
@@ -186,7 +186,7 @@ rule shards_sex_differentially_expressed_experiment:
         test =  'ELs_for_Rotate/Monarch_KG/test.txt',
         train = 'ELs_for_Rotate/Monarch_KG/train.txt',
         validation = 'ELs_for_Rotate/Monarch_KG/valid.txt',
-        model = 'Models/transE_monarch.pkl'
+        model = 'Models/TransE_monarch_kg_1.trained_model.pkl'
     output:
         'GroupComparisonResults/SexDiffExpShards/sex_diff_genes_mondo_{i}_Female_v_Male_g2p_rankings_hist.csv'
     threads: 2
@@ -314,7 +314,7 @@ rule do_cancer_vs_random:
         test =  'ELs_for_Rotate/Monarch_KG/test.txt',
         train = 'ELs_for_Rotate/Monarch_KG/train.txt',
         validation = 'ELs_for_Rotate/Monarch_KG/valid.txt',
-        model = 'Models/transE_monarch.pkl'
+        model = 'Models/TransE_monarch_kg_1.trained_model.pkl'
     output:
         'GroupComparisonResults/CancerVsRandom/monarch_transE_Cancer_v_Random_500_42_g2p_rankings_hist.csv'
     threads: 2
