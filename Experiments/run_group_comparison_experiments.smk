@@ -182,7 +182,7 @@ rule shard_sex_lists:
 rule shards_sex_differentially_expressed_experiment:
     input:
         female='work_comparison/SexDifChunks/female_differentially_expressed_genes_chunk_{i}.txt',
-        male='work_comparison/SexDifChunks/female_differentially_expressed_genes_chunk_{i}.txt',
+        male='work_comparison/SexDifChunks/male_differentially_expressed_genes_chunk_{i}.txt',
         test =  'ELs_for_Rotate/Monarch_KG/test.txt',
         train = 'ELs_for_Rotate/Monarch_KG/train.txt',
         validation = 'ELs_for_Rotate/Monarch_KG/valid.txt',
