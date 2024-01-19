@@ -1,10 +1,8 @@
 import pandas as pd
 import networkx as nx
 import random
-
 import sys
 sys.path.append('Scripts/')
-
 from compare_groups_test_omatic import plot_two_groups_hists, kruskal_test
 
 POPs = ['nfe_onf','afr','amr','eas']
