@@ -10,20 +10,24 @@ POPs = ['nfe_onf','afr','amr','eas']
 # '00', '01' ... '99'
 SEX_SHARDS = [ '0'+str(i) if i < 10 else str(i) for i in range(0,100)]
 
+# PPIs = ['original_monarch','HuRI']
+PPIs = ['original_monarch']
+Models = ['TransE','RotatE','ComplEx']
+
 rule all:
     input:
         expand('work_comparison/mondo_terms.{population}.txt',population=POPs),
-        'GroupComparisonResults/ASVD/euro_afr_gene_causes_mondo_European_v_African_g2p_rankings_hist.csv',
-        'GroupComparisonResults/ASVD/euro_latino_gene_causes_mondo_European_v_Latino_g2p_rankings_hist.csv',
-        'GroupComparisonResults/ASVD/euro_eas_gene_causes_mondo_European_v_East_Asian_g2p_rankings_hist.csv',
+        expand('GroupComparisonResults/{PPI}/{model}/ASVD/euro_afr_gene_causes_mondo_European_v_African_g2p_rankings_hist.csv', PPI=PPIs, model=Models),
+        expand('GroupComparisonResults/{PPI}/{model}/ASVD/euro_latino_gene_causes_mondo_European_v_Latino_g2p_rankings_hist.csv', PPI=PPIs, model=Models),
+        expand('GroupComparisonResults/{PPI}/{model}/ASVD/euro_eas_gene_causes_mondo_European_v_East_Asian_g2p_rankings_hist.csv', PPI=PPIs, model=Models),
         'work_comparison/female_differentially_expressed_genes.txt',
         'work_comparison/male_differentially_expressed_genes.txt',
-        'GroupComparisonResults/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.csv',
-        expand('GroupComparisonResults/SexDiffExpShards/sex_diff_genes_mondo_{i}_Female_v_Male_g2p_rankings_hist.csv',i=SEX_SHARDS),
+        expand('GroupComparisonResults/{PPI}/{model}/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.csv',PPI=PPIs, model=Models),
+        expand('GroupComparisonResults/{PPI}/{model}/SexDiffExpShards/sex_diff_genes_mondo_{i}_Female_v_Male_g2p_rankings_hist.csv',i=SEX_SHARDS, PPI=PPIs, model=Models),
         'work_comparison/cancer_genes.txt',
-        'GroupComparisonResults/CancerVsRandom/monarch_transE_Cancer_v_Random_500_42_g2p_rankings_hist.csv',
-        'GroupComparisonResults/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.png',
-        'GroupComparisonResults/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.txt'
+        expand('GroupComparisonResults/{PPI}/{model}/CancerVsRandom/monarch_transE_Cancer_v_Random_500_42_g2p_rankings_hist.csv', PPI=PPIs, model=Models),
+        expand('GroupComparisonResults/{PPI}/{model}/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.png', PPI=PPIs, model=Models),
+        expand('GroupComparisonResults/{PPI}/{model}/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.txt', PPI=PPIs, model=Models)
 
 def load_ancestry_hpo_file(_f):
     _hpos = []
@@ -32,6 +36,31 @@ def load_ancestry_hpo_file(_f):
         _tmp = _row[-1].split(',')
         _hpos += _tmp
     return list(set(_hpos))
+
+def get_model(ppi,model):
+    # fix string for model name
+    if model == 'TransE':
+        model = 'TransE'
+    elif model == 'RotatE':
+        model = 'rotate'
+    elif model == 'ComplEx':
+        model = 'ComplEx'
+    else:
+        raise ValueError('Unknown model: '+model)
+    if ppi == 'HuRI':
+        return 'Models/{}_monarch_huri_kg_1.trained_model.pkl'.format(model)
+    elif ppi == 'original_monarch':
+        return 'Models/{}_monarch_kg_1.trained_model.pkl'.format(model)
+    else:
+        raise ValueError('Unknown PPI: '+ppi)
+
+def set_test_set(ppi):
+    if ppi == 'HuRI':
+        return 'ELs_for_Rotate/Monarch_HuRI/monarch_HuRI.test.tsv'
+    elif ppi == 'original_monarch':
+        return 'ELs_for_Rotate/Monarch_KG/test.txt'
+    else:
+        raise ValueError('Unknown PPI: '+ppi)
 
 european_terms = load_ancestry_hpo_file('AncestrySpecificMONDO/all_pathogenic_ancestry_groups__AF_nfe_onf.tsv')
 african_terms = load_ancestry_hpo_file('AncestrySpecificMONDO/all_pathogenic_ancestry_groups__AF_afr.tsv')    
@@ -66,16 +95,17 @@ rule do_asvd_comparisons:
         east_asian = 'work_comparison/mondo_terms.eas.txt',
         test =  'ELs_for_Rotate/Monarch_KG/test.txt',
         train = 'ELs_for_Rotate/Monarch_KG/train.txt',
-        validation = 'ELs_for_Rotate/Monarch_KG/valid.txt',
-        model = 'Models/TransE_monarch_kg_1.trained_model.pkl'
+        validation = 'ELs_for_Rotate/Monarch_KG/valid.txt'
     output:
-        'GroupComparisonResults/ASVD/euro_afr_gene_causes_mondo_European_v_African_g2p_rankings_hist.csv',
-        'GroupComparisonResults/ASVD/euro_latino_gene_causes_mondo_European_v_Latino_g2p_rankings_hist.csv',
-        'GroupComparisonResults/ASVD/euro_eas_gene_causes_mondo_European_v_East_Asian_g2p_rankings_hist.csv'
-    threads: 2
+        'GroupComparisonResults/{PPI}/{model}/ASVD/euro_afr_gene_causes_mondo_European_v_African_g2p_rankings_hist.csv',
+        'GroupComparisonResults/{PPI}/{model}/ASVD/euro_latino_gene_causes_mondo_European_v_Latino_g2p_rankings_hist.csv',
+        'GroupComparisonResults/{PPI}/{model}/ASVD/euro_eas_gene_causes_mondo_European_v_East_Asian_g2p_rankings_hist.csv'
+    threads: 16
+    params:
+        model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
     shell:
         """
-        mkdir -p GroupComparisonResults/ASVD/
+        mkdir -p GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/ASVD/
         # EURO vs AFR
         python Scripts/compare_groups_test_omatic.py \
             --a_terms {input.euro} \
@@ -88,8 +118,8 @@ rule do_asvd_comparisons:
             --train_triples {input.train} \
             --validation_triples {input.validation} \
             --test_triples {input.test} \
-            --model {input.model} \
-            --output_prefix GroupComparisonResults/ASVD/euro_afr_gene_causes_mondo_
+            --model {params.model} \
+            --output_prefix GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/ASVD/euro_afr_gene_causes_mondo_
 
         # EURO vs AMR
         python Scripts/compare_groups_test_omatic.py \
@@ -104,7 +134,7 @@ rule do_asvd_comparisons:
             --validation_triples {input.validation} \
             --test_triples {input.test} \
             --model {input.model} \
-            --output_prefix GroupComparisonResults/ASVD/euro_latino_gene_causes_mondo_
+            --output_prefix GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/ASVD/euro_latino_gene_causes_mondo_
         
         # EURO vs EAS
         python Scripts/compare_groups_test_omatic.py \
@@ -119,7 +149,7 @@ rule do_asvd_comparisons:
             --validation_triples {input.validation} \
             --test_triples {input.test} \
             --model {input.model} \
-            --output_prefix GroupComparisonResults/ASVD/euro_eas_gene_causes_mondo_
+            --output_prefix GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/ASVD/euro_eas_gene_causes_mondo_
         """
 
 rule make_sex_differentially_expressed_genes:
@@ -134,36 +164,6 @@ rule make_sex_differentially_expressed_genes:
         """
         python Scripts/create_sex_differentially_expressed_gene_list.py -m {output.male} -f {output.female}
         """
-
-# rule sex_differentially_expressed_experiment:
-#     input:
-#         female='work_comparison/female_differentially_expressed_genes.txt',
-#         male='work_comparison/male_differentially_expressed_genes.txt',
-#         test =  'ELs_for_Rotate/Monarch_KG/test.txt',
-#         train = 'ELs_for_Rotate/Monarch_KG/train.txt',
-#         validation = 'ELs_for_Rotate/Monarch_KG/valid.txt',
-#         model = 'Models/TransE_monarch_kg_1.trained_model.pkl'
-#     output:
-#         'GroupComparisonResults/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.csv'
-#     threads: 2
-#     shell:
-#         """
-#         mkdir -p GroupComparisonResults/SexDiffExp/
-#         python Scripts/compare_groups_test_omatic.py \
-#             --a_terms {input.female} \
-#             --b_terms {input.male} \
-#             --a_label Female \
-#             --b_label Male \
-#             --relation "biolink:interacts_with" \
-#             --prediction_target tail \
-#             --prediction_prefix "HGNC:" \
-#             --train_triples {input.train} \
-#             --validation_triples {input.validation} \
-#             --test_triples {input.test} \
-#             --model {input.model} \
-#             --output_prefix GroupComparisonResults/SexDiffExp/sex_diff_genes_mondo_ \
-#             --progress_bar
-#         """
 
 rule shard_sex_lists:
     input:
@@ -185,14 +185,16 @@ rule shards_sex_differentially_expressed_experiment:
         male='work_comparison/SexDifChunks/male_differentially_expressed_genes_chunk_{i}.txt',
         test =  'ELs_for_Rotate/Monarch_KG/test.txt',
         train = 'ELs_for_Rotate/Monarch_KG/train.txt',
-        validation = 'ELs_for_Rotate/Monarch_KG/valid.txt',
-        model = 'Models/TransE_monarch_kg_1.trained_model.pkl'
+        validation = 'ELs_for_Rotate/Monarch_KG/valid.txt'
     output:
-        'GroupComparisonResults/SexDiffExpShards/sex_diff_genes_mondo_{i}_Female_v_Male_g2p_rankings_hist.csv'
-    threads: 2
+        'GroupComparisonResults/{PPI}/{model}/SexDiffExpShards/sex_diff_genes_mondo_{i}_Female_v_Male_g2p_rankings_hist.csv'
+    threads: 16
+    params:
+        model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
+        
     shell:
         """
-        mkdir -p GroupComparisonResults/SexDiffExpShards/
+        mkdir -p GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/SexDiffExpShards/
         python Scripts/compare_groups_test_omatic.py \
             --a_terms {input.female} \
             --b_terms {input.male} \
@@ -204,35 +206,35 @@ rule shards_sex_differentially_expressed_experiment:
             --train_triples {input.train} \
             --validation_triples {input.validation} \
             --test_triples {input.test} \
-            --model {input.model} \
-            --output_prefix GroupComparisonResults/SexDiffExpShards/sex_diff_genes_mondo_{wildcards.i}_ \
+            --model {params.model} \
+            --output_prefix GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/SexDiffExpShards/sex_diff_genes_mondo_{wildcards.i}_ \
             --progress_bar
         """
 
 rule combine_sex_shards:
     input:
-        expand('GroupComparisonResults/SexDiffExpShards/sex_diff_genes_mondo_{i}_Female_v_Male_g2p_rankings_hist.csv',i=SEX_SHARDS)
+        expand('GroupComparisonResults/{PPI}/{model}/SexDiffExpShards/sex_diff_genes_mondo_{i}_Female_v_Male_g2p_rankings_hist.csv',i=SEX_SHARDS, PPI='{PPI}', model='{model}'),
     output:
-        'GroupComparisonResults/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.csv'
+        'GroupComparisonResults/{PPI}/{model}/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.csv'
     shell:
         """
-        mkdir -p GroupComparisonResults/SexDiffExp
+        mkdir -p GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/SexDiffExp
         echo ',head_label,relation_label,tail_label,rank,head_degree,tail_degree,population' > {output}
         cat {input} | grep -v 'head_label' >> {output}
         """
 
 rule sex_hist_and_kruskal:
     input:
-        'GroupComparisonResults/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.csv'
+        'GroupComparisonResults/{PPI}/{model}/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.csv'
     output:
-        'GroupComparisonResults/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.png',
-        'GroupComparisonResults/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.txt'
+        'GroupComparisonResults/{PPI}/{model}/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.png',
+        'GroupComparisonResults/{PPI}/{model}/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.txt'
     run:
         df = pd.read_csv(input[0])
         female_ranks = list(df[df['population'] =='Female']['rank'])
         male_ranks = list(df[df['population'] =='Male']['rank'])
-        plot_two_groups_hists(female_ranks,male_ranks,'Female','Male','GroupComparisonResults/SexDiffExp/sex_diff_genes_mondo_')
-        kruskal_test(female_ranks,male_ranks,'Female','Male','GroupComparisonResults/SexDiffExp/sex_diff_genes_mondo_')
+        plot_two_groups_hists(female_ranks,male_ranks,'Female','Male','GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/SexDiffExp/sex_diff_genes_mondo_')
+        kruskal_test(female_ranks,male_ranks,'Female','Male','GroupComparisonResult/{wildcards.PPI}/{wildcards.model}/SexDiffExp/sex_diff_genes_mondo_')
 
 rule make_cancer_gene_list:
     output:
@@ -313,14 +315,15 @@ rule do_cancer_vs_random:
         random = 'work_comparison/random_500_genes.txt',
         test =  'ELs_for_Rotate/Monarch_KG/test.txt',
         train = 'ELs_for_Rotate/Monarch_KG/train.txt',
-        validation = 'ELs_for_Rotate/Monarch_KG/valid.txt',
-        model = 'Models/TransE_monarch_kg_1.trained_model.pkl'
+        validation = 'ELs_for_Rotate/Monarch_KG/valid.txt'
     output:
-        'GroupComparisonResults/CancerVsRandom/monarch_transE_Cancer_v_Random_500_42_g2p_rankings_hist.csv'
-    threads: 2
+        'GroupComparisonResults/{PPI}/{model}/CancerVsRandom/monarch_transE_Cancer_v_Random_500_42_g2p_rankings_hist.csv'
+    threads: 16
+    params:
+        model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
     shell:
         """
-        mkdir -p GroupComparisonResults/CancerVsRandom/
+        mkdir -p GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/CancerVsRandom/
         python Scripts/compare_groups_test_omatic.py \
             --a_terms {input.cancer} \
             --b_terms {input.random} \
@@ -333,6 +336,6 @@ rule do_cancer_vs_random:
             --validation_triples {input.validation} \
             --test_triples {input.test} \
             --model {input.model} \
-            --output_prefix GroupComparisonResults/CancerVsRandom/monarch_transE_ \
+            --output_prefix GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/CancerVsRandom/monarch_transE_ \
             --progress_bar
         """
