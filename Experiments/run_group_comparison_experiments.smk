@@ -133,7 +133,7 @@ rule do_asvd_comparisons:
             --train_triples {input.train} \
             --validation_triples {input.validation} \
             --test_triples {input.test} \
-            --model {input.model} \
+            --model {params.model} \
             --output_prefix GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/ASVD/euro_latino_gene_causes_mondo_
         
         # EURO vs EAS
@@ -148,7 +148,7 @@ rule do_asvd_comparisons:
             --train_triples {input.train} \
             --validation_triples {input.validation} \
             --test_triples {input.test} \
-            --model {input.model} \
+            --model {params.model} \
             --output_prefix GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/ASVD/euro_eas_gene_causes_mondo_
         """
 
@@ -233,8 +233,8 @@ rule sex_hist_and_kruskal:
         df = pd.read_csv(input[0])
         female_ranks = list(df[df['population'] =='Female']['rank'])
         male_ranks = list(df[df['population'] =='Male']['rank'])
-        plot_two_groups_hists(female_ranks,male_ranks,'Female','Male','GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/SexDiffExp/sex_diff_genes_mondo_')
-        kruskal_test(female_ranks,male_ranks,'Female','Male','GroupComparisonResult/{wildcards.PPI}/{wildcards.model}/SexDiffExp/sex_diff_genes_mondo_')
+        plot_two_groups_hists(female_ranks,male_ranks,'Female','Male',f'GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/SexDiffExp/sex_diff_genes_mondo_')
+        kruskal_test(female_ranks,male_ranks,'Female','Male',f'GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/SexDiffExp/sex_diff_genes_mondo_')
 
 rule make_cancer_gene_list:
     output:
@@ -335,7 +335,7 @@ rule do_cancer_vs_random:
             --train_triples {input.train} \
             --validation_triples {input.validation} \
             --test_triples {input.test} \
-            --model {input.model} \
+            --model {params.model} \
             --output_prefix GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/CancerVsRandom/monarch_transE_ \
             --progress_bar
         """
