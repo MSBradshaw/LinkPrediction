@@ -10,9 +10,12 @@ POPs = ['nfe_onf','afr','amr','eas']
 # '00', '01' ... '99'
 SEX_SHARDS = [ '0'+str(i) if i < 10 else str(i) for i in range(0,100)]
 
-# PPIs = ['original_monarch','HuRI']
-PPIs = ['original_monarch']
+PPIs = ['original_monarch','HuRI','HuRI_filtered']
+PPIs = ['HuRI_filtered']
+# PPIs = ['original_monarch']
 Models = ['TransE','RotatE','ComplEx']
+Models = ['TransE'] # so I can force run only TransE HuRI while I wait for the other two to finish running
+Models = ['RotatE']
 
 rule all:
     input:
@@ -47,20 +50,58 @@ def get_model(ppi,model):
         model = 'ComplEx'
     else:
         raise ValueError('Unknown model: '+model)
+    
+    huri_id = '2'
+    filtered = ''
+    if 'filtered' in ppi:
+        filtered = '_filtered'
+        huri_id = '3'
+    
     if ppi == 'HuRI':
-        return 'Models/{}_monarch_huri_kg_1.trained_model.pkl'.format(model)
+        '{}_monarch_huri_kg_filtered_3.trained_model.pkl'
+        return 'Models/{}_monarch_huri_kg{}_{}.trained_model.pkl'.format(model, filtered, huri_id)
     elif ppi == 'original_monarch':
-        return 'Models/{}_monarch_kg_1.trained_model.pkl'.format(model)
+        return 'Models/{}_monarch_kg{}_1.trained_model.pkl'.format(model, filtered)
     else:
-        raise ValueError('Unknown PPI: '+ppi)
+        raise ValueError('Unknown PPI: ' + ppi)
 
-def set_test_set(ppi):
+def get_datasplits(ppi):
+    if ppi == 'HuRI':
+        return 'ELs_for_Rotate/Monarch_HuRI/monarch_HuRI.train.tsv', 'ELs_for_Rotate/Monarch_HuRI/monarch_HuRI.valid.tsv', 'ELs_for_Rotate/Monarch_HuRI/monarch_HuRI.test.tsv'
+    elif ppi == 'original_monarch':
+        return 'ELs_for_Rotate/Monarch_KG/train.txt', 'ELs_for_Rotate/Monarch_KG/valid.txt', 'ELs_for_Rotate/Monarch_KG/test.txt'
+    else:
+        raise ValueError('Unknown PPI: ' + ppi)
+
+def get_test(ppi):
     if ppi == 'HuRI':
         return 'ELs_for_Rotate/Monarch_HuRI/monarch_HuRI.test.tsv'
+    elif ppi == 'HuRI_filtered':
+        return 'ELs_for_Rotate/Monarch_HuRI_Filtered/test.txt'
     elif ppi == 'original_monarch':
         return 'ELs_for_Rotate/Monarch_KG/test.txt'
     else:
-        raise ValueError('Unknown PPI: '+ppi)
+        raise ValueError('Unknown PPI: ' + ppi)
+
+def get_train(ppi):
+    if ppi == 'HuRI':
+        return 'ELs_for_Rotate/Monarch_HuRI/monarch_HuRI.train.tsv'
+    elif ppi == 'HuRI_filtered':
+        return 'ELs_for_Rotate/Monarch_HuRI_Filtered/train.txt'
+    elif ppi == 'original_monarch':
+        return 'ELs_for_Rotate/Monarch_KG/train.txt'
+    else:
+        raise ValueError('Unknown PPI: ' + ppi)
+
+def get_valid(ppi):
+    if ppi == 'HuRI':
+        return 'ELs_for_Rotate/Monarch_HuRI/monarch_HuRI.valid.tsv'
+    elif ppi == 'HuRI_filtered':
+        return 'ELs_for_Rotate/Monarch_HuRI_Filtered/valid.txt'
+    elif ppi == 'original_monarch':
+        return 'ELs_for_Rotate/Monarch_KG/valid.txt'
+    else:
+        raise ValueError('Unknown PPI: ' + ppi)
 
 european_terms = load_ancestry_hpo_file('AncestrySpecificMONDO/all_pathogenic_ancestry_groups__AF_nfe_onf.tsv')
 african_terms = load_ancestry_hpo_file('AncestrySpecificMONDO/all_pathogenic_ancestry_groups__AF_afr.tsv')    
@@ -103,6 +144,10 @@ rule do_asvd_comparisons:
     threads: 16
     params:
         model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
+        train = lambda wildcards: get_train(wildcards.PPI),
+        valid = lambda wildcards: get_valid(wildcards.PPI),
+        test = lambda wildcards: get_test(wildcards.PPI)
+        
     shell:
         """
         mkdir -p GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/ASVD/
@@ -115,9 +160,9 @@ rule do_asvd_comparisons:
             --relation "biolink:causes" \
             --prediction_target head \
             --prediction_prefix "HGNC:" \
-            --train_triples {input.train} \
-            --validation_triples {input.validation} \
-            --test_triples {input.test} \
+            --train_triples {params.train} \
+            --validation_triples {params.valid} \
+            --test_triples {params.test} \
             --model {params.model} \
             --output_prefix GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/ASVD/euro_afr_gene_causes_mondo_
 
@@ -130,9 +175,9 @@ rule do_asvd_comparisons:
             --relation "biolink:causes" \
             --prediction_target head \
             --prediction_prefix "HGNC:" \
-            --train_triples {input.train} \
-            --validation_triples {input.validation} \
-            --test_triples {input.test} \
+            --train_triples {params.train} \
+            --validation_triples {params.valid} \
+            --test_triples {params.test} \
             --model {params.model} \
             --output_prefix GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/ASVD/euro_latino_gene_causes_mondo_
         
@@ -145,9 +190,9 @@ rule do_asvd_comparisons:
             --relation "biolink:causes" \
             --prediction_target head \
             --prediction_prefix "HGNC:" \
-            --train_triples {input.train} \
-            --validation_triples {input.validation} \
-            --test_triples {input.test} \
+            --train_triples {params.train} \
+            --validation_triples {params.valid} \
+            --test_triples {params.test} \
             --model {params.model} \
             --output_prefix GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/ASVD/euro_eas_gene_causes_mondo_
         """
@@ -191,10 +236,16 @@ rule shards_sex_differentially_expressed_experiment:
     threads: 16
     params:
         model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
-        
+        train = lambda wildcards: get_train(wildcards.PPI),
+        valid = lambda wildcards: get_valid(wildcards.PPI),
+        test = lambda wildcards: get_test(wildcards.PPI)
     shell:
         """
         mkdir -p GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/SexDiffExpShards/
+        # remove non human terms if they made it in somehow
+        grep "HGNC:" {input.female} > {input.female}.filtered
+        grep "HGNC:" {input.male} > {input.male}.filtered
+
         python Scripts/compare_groups_test_omatic.py \
             --a_terms {input.female} \
             --b_terms {input.male} \
@@ -203,9 +254,9 @@ rule shards_sex_differentially_expressed_experiment:
             --relation "biolink:interacts_with" \
             --prediction_target tail \
             --prediction_prefix "HGNC:" \
-            --train_triples {input.train} \
-            --validation_triples {input.validation} \
-            --test_triples {input.test} \
+            --train_triples {params.train} \
+            --validation_triples {params.valid} \
+            --test_triples {params.test} \
             --model {params.model} \
             --output_prefix GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/SexDiffExpShards/sex_diff_genes_mondo_{wildcards.i}_ \
             --progress_bar
@@ -321,6 +372,9 @@ rule do_cancer_vs_random:
     threads: 16
     params:
         model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
+        train = lambda wildcards: get_train(wildcards.PPI),
+        valid = lambda wildcards: get_valid(wildcards.PPI),
+        test = lambda wildcards: get_test(wildcards.PPI)
     shell:
         """
         mkdir -p GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/CancerVsRandom/
@@ -332,9 +386,9 @@ rule do_cancer_vs_random:
             --relation "biolink:interacts_with" \
             --prediction_target head \
             --prediction_prefix "HGNC:" \
-            --train_triples {input.train} \
-            --validation_triples {input.validation} \
-            --test_triples {input.test} \
+            --train_triples {params.train} \
+            --validation_triples {params.valid} \
+            --test_triples {params.test} \
             --model {params.model} \
             --output_prefix GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/CancerVsRandom/monarch_transE_ \
             --progress_bar
