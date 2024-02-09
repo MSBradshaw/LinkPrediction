@@ -1,4 +1,5 @@
 import random
+import os
 
 """
 The purpose of this pipeline is to download and process the Monarch KG data so that it is in the triple format needed for training KGE models with PyKeen
@@ -15,7 +16,14 @@ rule all:
         "ELs_for_Rotate/Monarch_KG/valid.txt",
         "ELs_for_Rotate/Monarch_HuRI/monarch_HuRI.train.tsv",
         "ELs_for_Rotate/Monarch_HuRI/monarch_HuRI.valid.tsv",
-        "ELs_for_Rotate/Monarch_HuRI/monarch_HuRI.test.tsv"
+        "ELs_for_Rotate/Monarch_HuRI/monarch_HuRI.test.tsv",
+        "ELs_for_Rotate/Monarch_KG_Filtered/train.txt",
+        "ELs_for_Rotate/Monarch_KG_Filtered/valid.txt",
+        "ELs_for_Rotate/Monarch_KG_Filtered/test.txt",
+        "ELs_for_Rotate/Monarch_HuRI_Filtered/train.txt",
+        "ELs_for_Rotate/Monarch_HuRI_Filtered/valid.txt",
+        "ELs_for_Rotate/Monarch_HuRI_Filtered/test.txt"
+
 
 rule download:
     output:
@@ -140,3 +148,75 @@ rule make_monarch_HuRI:
         python Scripts/create_monarch_huri.py -a {input.test} -b {input.huri} -p 'HGNC' -o {output.test}
         """
 
+
+rule keep_only_hgnc_mondo:
+    input:
+        "Monarch_KG/monarch-kg_triples.2023-12-16.tsv"
+    output:
+        out="Monarch_KG/monarch-kg_triples.2023-12-16.filtered.tsv"
+    run:
+        # split the triples into train, valid, and test with .8, .1, .1 split
+        random.seed(42)
+        with open(output.out,'w') as out:
+            for line in open(input[0],'r'):
+                row = line.strip().split('\t')
+                type1 = row[0].split(':')[0]
+                type2 = row[2].split(':')[0]
+                if type1 in ['HGNC','MONDO'] and type2 in ['HGNC','MONDO']:
+                    out.write(line)
+                    
+
+rule make_monarch_HuRI_filtered:
+    input:
+        mapping="Resources/HGNC_to_ENSG.tsv",
+        huri="Resources/huri.hgnc.triples.tsv",
+        monarch="Monarch_KG/monarch-kg_triples.2023-12-16.filtered.tsv"
+    output:
+        out="Resources/monarch_HuRI_filtered.tsv"
+    shell:
+        """
+        mkdir -p ELs_for_Rotate/Monarch_HuRI_Filtered
+        python Scripts/create_monarch_huri.py -a {input.monarch} -b {input.huri} -p 'HGNC' -o {output.out}
+        """
+
+rule split_monarch_filtered_triples:
+    input:
+        "Monarch_KG/monarch-kg_triples.2023-12-16.filtered.tsv"
+    output:
+        train="ELs_for_Rotate/Monarch_KG_Filtered/train.txt",
+        valid="ELs_for_Rotate/Monarch_KG_Filtered/valid.txt",
+        test="ELs_for_Rotate/Monarch_KG_Filtered/test.txt"
+    run:
+        os.makedirs('ELs_for_Rotate/Monarch_KG_Filtered', exist_ok=True)
+        # split the triples into train, valid, and test with .8, .1, .1 split
+        random.seed(42)
+        with open(output.train,'w') as train, open(output.valid,'w') as valid, open(output.test,'w') as test:
+            for line in open(input[0],'r'):
+                rand = random.random()
+                if rand < .8:
+                    train.write(line)
+                elif rand < .9:
+                    valid.write(line)
+                else:
+                    test.write(line)
+
+rule split_huri_filtered_triples:
+    input:
+        "Resources/monarch_HuRI_filtered.tsv"
+    output:
+        train="ELs_for_Rotate/Monarch_HuRI_Filtered/train.txt",
+        valid="ELs_for_Rotate/Monarch_HuRI_Filtered/valid.txt",
+        test="ELs_for_Rotate/Monarch_HuRI_Filtered/test.txt"
+    run:
+        os.makedirs('ELs_for_Rotate/Monarch_HuRI_Filtered', exist_ok=True)
+        # split the triples into train, valid, and test with .8, .1, .1 split
+        random.seed(42)
+        with open(output.train,'w') as train, open(output.valid,'w') as valid, open(output.test,'w') as test:
+            for line in open(input[0],'r'):
+                rand = random.random()
+                if rand < .8:
+                    train.write(line)
+                elif rand < .9:
+                    valid.write(line)
+                else:
+                    test.write(line)
