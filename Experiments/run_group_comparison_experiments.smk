@@ -10,27 +10,34 @@ POPs = ['nfe_onf','afr','amr','eas']
 # '00', '01' ... '99'
 SEX_SHARDS = [ '0'+str(i) if i < 10 else str(i) for i in range(0,100)]
 
-PPIs = ['original_monarch','HuRI','HuRI_filtered']
-PPIs = ['HuRI_filtered']
-# PPIs = ['original_monarch']
+# PPIs = ['original_monarch','HuRI','HuRI_filtered','monarch_filtered']
+# PPIs = ['HuRI']
+# PPIs = ['HuRI_filtered','monarch_filtered']
+PPIs = ['original_monarch']
 Models = ['TransE','RotatE','ComplEx']
-Models = ['TransE'] # so I can force run only TransE HuRI while I wait for the other two to finish running
-Models = ['RotatE']
+# Models = ['TransE'] # so I can force run only TransE HuRI while I wait for the other two to finish running
+# Models = ['RotatE']
+# Models = ['ComplEx']
 
 rule all:
     input:
-        expand('work_comparison/mondo_terms.{population}.txt',population=POPs),
-        expand('GroupComparisonResults/{PPI}/{model}/ASVD/euro_afr_gene_causes_mondo_European_v_African_g2p_rankings_hist.csv', PPI=PPIs, model=Models),
-        expand('GroupComparisonResults/{PPI}/{model}/ASVD/euro_latino_gene_causes_mondo_European_v_Latino_g2p_rankings_hist.csv', PPI=PPIs, model=Models),
-        expand('GroupComparisonResults/{PPI}/{model}/ASVD/euro_eas_gene_causes_mondo_European_v_East_Asian_g2p_rankings_hist.csv', PPI=PPIs, model=Models),
-        'work_comparison/female_differentially_expressed_genes.txt',
-        'work_comparison/male_differentially_expressed_genes.txt',
-        expand('GroupComparisonResults/{PPI}/{model}/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.csv',PPI=PPIs, model=Models),
-        expand('GroupComparisonResults/{PPI}/{model}/SexDiffExpShards/sex_diff_genes_mondo_{i}_Female_v_Male_g2p_rankings_hist.csv',i=SEX_SHARDS, PPI=PPIs, model=Models),
-        'work_comparison/cancer_genes.txt',
-        expand('GroupComparisonResults/{PPI}/{model}/CancerVsRandom/monarch_transE_Cancer_v_Random_500_42_g2p_rankings_hist.csv', PPI=PPIs, model=Models),
-        expand('GroupComparisonResults/{PPI}/{model}/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.png', PPI=PPIs, model=Models),
-        expand('GroupComparisonResults/{PPI}/{model}/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.txt', PPI=PPIs, model=Models)
+        # expand('work_comparison/mondo_terms.{population}.txt',population=POPs),
+        # expand('GroupComparisonResults/{PPI}/{model}/ASVD/euro_afr_gene_causes_mondo_European_v_African_g2p_rankings_hist.csv', PPI=PPIs, model=Models),
+        # expand('GroupComparisonResults/{PPI}/{model}/ASVD/euro_latino_gene_causes_mondo_European_v_Latino_g2p_rankings_hist.csv', PPI=PPIs, model=Models),
+        # expand('GroupComparisonResults/{PPI}/{model}/ASVD/euro_eas_gene_causes_mondo_European_v_East_Asian_g2p_rankings_hist.csv', PPI=PPIs, model=Models),
+        # 'work_comparison/female_differentially_expressed_genes.txt',
+        # 'work_comparison/male_differentially_expressed_genes.txt',
+        # expand('GroupComparisonResults/{PPI}/{model}/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.csv',PPI=PPIs, model=Models),
+        # expand('GroupComparisonResults/{PPI}/{model}/SexDiffExpShards/sex_diff_genes_mondo_{i}_Female_v_Male_g2p_rankings_hist.csv',i=SEX_SHARDS, PPI=PPIs, model=Models),
+        # 'work_comparison/cancer_genes.txt',
+        # expand('GroupComparisonResults/{PPI}/{model}/CancerVsRandom/monarch_transE_Cancer_v_Random_500_42_g2p_rankings_hist.csv', PPI=PPIs, model=Models),
+        # expand('GroupComparisonResults/{PPI}/{model}/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.png', PPI=PPIs, model=Models),
+        # expand('GroupComparisonResults/{PPI}/{model}/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.txt', PPI=PPIs, model=Models),
+        # expand('GroupComparisonResults/{PPI}/{model}/PediatricCancerVsRandom/pediatric_Pediatric_Cancer_v_Random_500_42_g2p_rankings_hist.csv', PPI=PPIs, model=Models),
+        expand('GroupRankResults/{PPI}/{model}/Cancer/cancer.tsv', PPI=PPIs, model=Models),
+        expand('GroupRankResults/{PPI}/{model}/SexDiffExp/male_differentially_expressed_genes.tsv', PPI=PPIs, model=Models),
+        expand('GroupRankResults/{PPI}/{model}/SexDiffExp/female_differentially_expressed_genes.tsv', PPI=PPIs, model=Models),
+        expand('GroupRankResults/{PPI}/{model}/PediatricCancer/pediatric_cancer.tsv', PPI=PPIs, model=Models)
 
 def load_ancestry_hpo_file(_f):
     _hpos = []
@@ -42,26 +49,19 @@ def load_ancestry_hpo_file(_f):
 
 def get_model(ppi,model):
     # fix string for model name
-    if model == 'TransE':
-        model = 'TransE'
-    elif model == 'RotatE':
-        model = 'rotate'
-    elif model == 'ComplEx':
-        model = 'ComplEx'
-    else:
+    model = model.lower()
+    if model not in ['transe','rotate','complex']:
         raise ValueError('Unknown model: '+model)
-    
-    huri_id = '2'
-    filtered = ''
-    if 'filtered' in ppi:
-        filtered = '_filtered'
-        huri_id = '3'
-    
+        
     if ppi == 'HuRI':
-        '{}_monarch_huri_kg_filtered_3.trained_model.pkl'
-        return 'Models/{}_monarch_huri_kg{}_{}.trained_model.pkl'.format(model, filtered, huri_id)
+        '{}_monarch_huri_filtered_3.trained_model.pkl'
+        return 'Models/{}_monarch_huri.trained_model.pkl'.format(model)
+    elif ppi == 'HuRI_filtered':
+        return 'Models/{}_monarch_huri_filtered.trained_model.pkl'.format(model)
+    elif ppi == 'monarch_filtered':
+        return 'Models/{}_monarch_filtered.trained_model.pkl'.format(model)
     elif ppi == 'original_monarch':
-        return 'Models/{}_monarch_kg{}_1.trained_model.pkl'.format(model, filtered)
+        return 'Models/{}_monarch.trained_model.pkl'.format(model)
     else:
         raise ValueError('Unknown PPI: ' + ppi)
 
@@ -78,6 +78,8 @@ def get_test(ppi):
         return 'ELs_for_Rotate/Monarch_HuRI/monarch_HuRI.test.tsv'
     elif ppi == 'HuRI_filtered':
         return 'ELs_for_Rotate/Monarch_HuRI_Filtered/test.txt'
+    elif ppi == 'monarch_filtered':
+        return 'ELs_for_Rotate/Monarch_KG_Filtered/test.txt'
     elif ppi == 'original_monarch':
         return 'ELs_for_Rotate/Monarch_KG/test.txt'
     else:
@@ -88,6 +90,8 @@ def get_train(ppi):
         return 'ELs_for_Rotate/Monarch_HuRI/monarch_HuRI.train.tsv'
     elif ppi == 'HuRI_filtered':
         return 'ELs_for_Rotate/Monarch_HuRI_Filtered/train.txt'
+    elif ppi == 'monarch_filtered':
+        return 'ELs_for_Rotate/Monarch_KG_Filtered/train.txt'
     elif ppi == 'original_monarch':
         return 'ELs_for_Rotate/Monarch_KG/train.txt'
     else:
@@ -98,6 +102,8 @@ def get_valid(ppi):
         return 'ELs_for_Rotate/Monarch_HuRI/monarch_HuRI.valid.tsv'
     elif ppi == 'HuRI_filtered':
         return 'ELs_for_Rotate/Monarch_HuRI_Filtered/valid.txt'
+    elif ppi == 'monarch_filtered':
+        return 'ELs_for_Rotate/Monarch_KG_Filtered/valid.txt'
     elif ppi == 'original_monarch':
         return 'ELs_for_Rotate/Monarch_KG/valid.txt'
     else:
@@ -392,4 +398,316 @@ rule do_cancer_vs_random:
             --model {params.model} \
             --output_prefix GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/CancerVsRandom/monarch_transE_ \
             --progress_bar
+        """
+
+rule make_peds_cancer_list:
+    input:
+        chco = 'Resources/chco_rna_fusions.csv',
+        h2s = 'Resources/HGNC_to_symbol.tsv'
+    output:
+        'work_comparison/pediatric_cancer_genes.txt'
+    run:
+        h2s = {line.strip().split('\t')[1]:line.strip().split('\t')[0] for line in open(input.h2s,'r')}
+        fiveprime = 2
+        threeprime = 3
+        written = set()
+        with open(output[0],'w') as outfile:
+            for line in open(input.chco,'r'):
+                if len(row) <= threeprime:
+                    print('skipping',row)
+                    continue
+                row = line.strip().split(',')
+                if row[fiveprime] in h2s and row[fiveprime] not in written:
+                    outfile.write(h2s[row[fiveprime]]+'\n')
+                    written.add(h2s[row[fiveprime]])
+                if row[threeprime] in h2s and row[threeprime] not in written:
+                    outfile.write(h2s[row[threeprime]]+'\n')
+                    written.add(h2s[row[threeprime]])
+
+rule do_pediatric_cancer_vs_random:
+    input:
+        ped_cancer = 'work_comparison/pediatric_cancer_genes.txt',
+        random = 'work_comparison/random_500_genes.txt',
+        test =  'ELs_for_Rotate/Monarch_KG/test.txt',
+        train = 'ELs_for_Rotate/Monarch_KG/train.txt',
+        validation = 'ELs_for_Rotate/Monarch_KG/valid.txt'
+    output:
+        'GroupComparisonResults/{PPI}/{model}/PediatricCancerVsRandom/pediatric_Pediatric_Cancer_v_Random_500_42_g2p_rankings_hist.csv'
+    threads: 16
+    params:
+        model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
+        train = lambda wildcards: get_train(wildcards.PPI),
+        valid = lambda wildcards: get_valid(wildcards.PPI),
+        test = lambda wildcards: get_test(wildcards.PPI)
+    shell:
+        """
+        mkdir -p GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/PediatricCancerVsRandom/
+        python Scripts/compare_groups_test_omatic.py \
+            --a_terms {input.ped_cancer} \
+            --b_terms {input.random} \
+            --a_label Pediatric_Cancer \
+            --b_label Random_500_42 \
+            --relation "biolink:interacts_with" \
+            --prediction_target head \
+            --prediction_prefix "HGNC:" \
+            --train_triples {params.train} \
+            --validation_triples {params.valid} \
+            --test_triples {params.test} \
+            --model {params.model} \
+            --output_prefix GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/PediatricCancerVsRandom/pediatric_ \
+            --progress_bar
+        """
+
+# ----------------------------------------- Generate Ranking Results -----------------------------------------
+
+rule cancer_rank_results:
+    input:
+        terms = 'work_comparison/cancer_genes.txt'
+    output:
+        'GroupRankResults/{PPI}/{model}/Cancer/cancer.tsv'
+    threads: 16
+    params:
+        model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
+        train = lambda wildcards: get_train(wildcards.PPI),
+        valid = lambda wildcards: get_valid(wildcards.PPI),
+        test = lambda wildcards: get_test(wildcards.PPI)
+    shell:
+        """
+        mkdir -p GroupRankResults/{wildcards.PPI}/{wildcards.model}/Cancer/
+        python Scripts/generate_ranked_results.py \
+                --terms {input.terms} \
+                --label Cancer \
+                --relation "biolink:interacts_with" \
+                --prediction_target head \
+                --prediction_prefix "HGNC:" \
+                --train_triples {params.train} \
+                --validation_triples {params.valid} \
+                --test_triples {params.test} \
+                --model {params.model} \
+                --output {output} \
+                --progress_bar
+        """
+
+rule random_rank_results:
+    input:
+        terms = 'work_comparison/random_500_genes.txt'
+    output:
+        'GroupRankResults/{PPI}/{model}/Random/random_500_42.tsv'
+    threads: 16
+    params:
+        model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
+        train = lambda wildcards: get_train(wildcards.PPI),
+        valid = lambda wildcards: get_valid(wildcards.PPI),
+        test = lambda wildcards: get_test(wildcards.PPI)
+    shell:
+        """
+        mkdir -p GroupRankResults/{wildcards.PPI}/{wildcards.model}/Random/
+        python Scripts/generate_ranked_results.py \
+                --terms {input.terms} \
+                --label Random_500_42 \
+                --relation "biolink:interacts_with" \
+                --prediction_target head \
+                --prediction_prefix "HGNC:" \
+                --train_triples {params.train} \
+                --validation_triples {params.valid} \
+                --test_triples {params.test} \
+                --model {params.model} \
+                --output {output} \
+                --progress_bar
+        """
+
+rule pediatric_cancer_rank_results:
+    input:
+        terms = 'work_comparison/pediatric_cancer_genes.txt'
+    output:
+        'GroupRankResults/{PPI}/{model}/PediatricCancer/pediatric_cancer.tsv'
+    threads: 16
+    params:
+        model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
+        train = lambda wildcards: get_train(wildcards.PPI),
+        valid = lambda wildcards: get_valid(wildcards.PPI),
+        test = lambda wildcards: get_test(wildcards.PPI)
+    shell:
+        """
+        mkdir -p GroupRankResults/{wildcards.PPI}/{wildcards.model}/PediatricCancer/
+        python Scripts/generate_ranked_results.py \
+                --terms {input.terms} \
+                --label Pediatric_Cancer \
+                --relation "biolink:interacts_with" \
+                --prediction_target head \
+                --prediction_prefix "HGNC:" \
+                --train_triples {params.train} \
+                --validation_triples {params.valid} \
+                --test_triples {params.test} \
+                --model {params.model} \
+                --output {output} \
+                --progress_bar
+        """
+
+rule shards_sex_differentially_expressed_ranked_results:
+    input:
+        female='work_comparison/SexDifChunks/female_differentially_expressed_genes_chunk_{i}.txt',
+        male='work_comparison/SexDifChunks/male_differentially_expressed_genes_chunk_{i}.txt'
+    output:
+        male='GroupRankResults/{PPI}/{model}/SexDiffExpShards/male_differentially_expressed_genes_chunk_{i}.tsv',
+        female='GroupRankResults/{PPI}/{model}/SexDiffExpShards/female_differentially_expressed_genes_chunk_{i}.tsv'
+    threads: 16
+    params:
+        model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
+        train = lambda wildcards: get_train(wildcards.PPI),
+        valid = lambda wildcards: get_valid(wildcards.PPI),
+        test = lambda wildcards: get_test(wildcards.PPI)
+    shell:
+        """
+        mkdir -p GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/SexDiffExpShards/
+        # remove non human terms if they made it in somehow
+        grep "HGNC:" {input.female} > {input.female}.filtered
+        grep "HGNC:" {input.male} > {input.male}.filtered
+
+        python Scripts/generate_ranked_results.py \
+                --terms {input.male} \
+                --label Male \
+                --relation "biolink:interacts_with" \
+                --prediction_target head \
+                --prediction_prefix "HGNC:" \
+                --train_triples {params.train} \
+                --validation_triples {params.valid} \
+                --test_triples {params.test} \
+                --model {params.model} \
+                --output {output.male} \
+                --progress_bar
+        
+        python Scripts/generate_ranked_results.py \
+                --terms {input.female} \
+                --label Female \
+                --relation "biolink:interacts_with" \
+                --prediction_target head \
+                --prediction_prefix "HGNC:" \
+                --train_triples {params.train} \
+                --validation_triples {params.valid} \
+                --test_triples {params.test} \
+                --model {params.model} \
+                --output {output.female} \
+                --progress_bar
+        """
+
+rule agg_sex_shards_ranked_results:
+    input:
+        male=expand('GroupRankResults/{PPI}/{model}/SexDiffExpShards/male_differentially_expressed_genes_chunk_{i}.tsv', PPI='{PPI}', model='{model}', i=SEX_SHARDS),
+        female=expand('GroupRankResults/{PPI}/{model}/SexDiffExpShards/female_differentially_expressed_genes_chunk_{i}.tsv', PPI='{PPI}', model='{model}', i=SEX_SHARDS)
+    output:
+        male='GroupRankResults/{PPI}/{model}/SexDiffExp/male_differentially_expressed_genes.tsv',
+        female='GroupRankResults/{PPI}/{model}/SexDiffExp/female_differentially_expressed_genes.tsv'
+    threads: 16
+    shell:
+        """
+        echo -e "head_id\tscore\thead_label\ttail_label\trelation_label\thead_degree\ttail_degree\tin_test_set\tquery_term\tpopulation\trank" > {output.female}
+        ls GroupRankResults/{wildcards.PPI}/{wildcards.model}/SexDiffExpShards/female_differentially_expressed_genes_chunk_*.tsv | gargs cat {{}} | grep -v "head_id" >> {output.female}
+
+        echo -e "head_id\tscore\thead_label\ttail_label\trelation_label\thead_degree\ttail_degree\tin_test_set\tquery_term\tpopulation\trank" > {output.male}
+        ls GroupRankResults/{wildcards.PPI}/{wildcards.model}/SexDiffExpShards/male_differentially_expressed_genes_chunk_*.tsv | gargs cat {{}} | grep -v "head_id" >> {output.male}
+        """
+                
+rule asvd_ranked_results:
+    input:
+        euro = 'work_comparison/mondo_terms.nfe_onf.txt',
+        african = 'work_comparison/mondo_terms.afr.txt',
+        latino = 'work_comparison/mondo_terms.amr.txt',
+        east_asian = 'work_comparison/mondo_terms.eas.txt'
+    output:
+        euro='GroupRankResults/{PPI}/{model}/ASVD/european.tsv',
+        african='GroupRankResults/{PPI}/{model}/ASVD/african.tsv',
+        latino='GroupRankResults/{PPI}/{model}/ASVD/latino.tsv',
+        east_asian='GroupRankResults/{PPI}/{model}/ASVD/east_asian.tsv'
+    threads: 16
+    params:
+        model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
+        train = lambda wildcards: get_train(wildcards.PPI),
+        valid = lambda wildcards: get_valid(wildcards.PPI),
+        test = lambda wildcards: get_test(wildcards.PPI)        
+    shell:
+        """
+        mkdir -p GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/ASVD/
+        # EURO
+        python Scripts/generate_ranked_results.py \
+                --terms {input.euro} \
+                --label European \
+                --relation "biolink:interacts_with" \
+                --prediction_target tail \
+                --prediction_prefix "HGNC:" \
+                --train_triples {params.train} \
+                --validation_triples {params.valid} \
+                --test_triples {params.test} \
+                --model {params.model} \
+                --output {output.euro} \
+                --progress_bar
+        
+        # AFRICAN
+        python Scripts/generate_ranked_results.py \
+                --terms {input.african} \
+                --label African \
+                --relation "biolink:interacts_with" \
+                --prediction_target tail \
+                --prediction_prefix "HGNC:" \
+                --train_triples {params.train} \
+                --validation_triples {params.valid} \
+                --test_triples {params.test} \
+                --model {params.model} \
+                --output {output.african} \
+                --progress_bar
+        
+        # LATINO
+        python Scripts/generate_ranked_results.py \
+                --terms {input.latino} \
+                --label Latino \
+                --relation "biolink:interacts_with" \
+                --prediction_target tail \
+                --prediction_prefix "HGNC:" \
+                --train_triples {params.train} \
+                --validation_triples {params.valid} \
+                --test_triples {params.test} \
+                --model {params.model} \
+                --output {output.latino} \
+                --progress_bar
+        
+        # EAST ASIAN
+        python Scripts/generate_ranked_results.py \
+                --terms {input.east_asian} \
+                --label East_Asian \
+                --relation "biolink:interacts_with" \
+                --prediction_target tail \
+                --prediction_prefix "HGNC:" \
+                --train_triples {params.train} \
+                --validation_triples {params.valid} \
+                --test_triples {params.test} \
+                --model {params.model} \
+                --output {output.east_asian} \
+                --progress_bar
+        """
+
+rule rare_disease_rank_results:
+    input:
+        'OrphanetEpidemiology/300_mondo_ids.txt'
+    output:
+        'GroupRankResults/{PPI}/{model}/RareDisease/rare_disease.tsv'
+    threads: 16
+    params:
+        model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
+        train = lambda wildcards: get_train(wildcards.PPI),
+        valid = lambda wildcards: get_valid(wildcards.PPI),
+        test = lambda wildcards: get_test(wildcards.PPI)
+    shell:
+        """
+        python Scripts/generate_ranked_results.py \
+                --terms {input} \
+                --label Rare_Diseases \
+                --relation "biolink:interacts_with" \
+                --prediction_target tail \
+                --prediction_prefix "HGNC:" \
+                --train_triples {params.train} \
+                --validation_triples {params.valid} \
+                --test_triples {params.test} \
+                --model {params.model} \
+                --output {output} \
+                --progress_bar
         """
