@@ -101,7 +101,14 @@ def get_scores_for_edges(terms: List[str],
         except ZeroDivisionError:
             pass
         try:
-            predictions_df = predict.predict_target(model=model, head=None, relation=relation, tail=term, triples_factory=data).df
+            print(relation,term)
+            if 'SGD' in term or 'RGD' in term: # the SGD terms seem to break HuRI trained modesl despite them being present in all 3 splits of the data, the non huri models have no problem
+                print('skipping',term)
+                continue
+            if prediction_target == 'head':
+                predictions_df = predict.predict_target(model=model, head=None, relation=relation, tail=term, triples_factory=data).df
+            elif prediction_target == 'tail':
+                predictions_df = predict.predict_target(model=model, head=term, relation=relation, tail=None, triples_factory=data).df
         except KeyError as e:
             print(f'KeyError: {e}')
             # raise warning with the error message
@@ -319,7 +326,7 @@ def main():
     group_b_terms = read_terms_from_file(args.b_terms)
 
     # load network to get degrees
-    degs = load_degs(args.test_triples)
+    degs = load_degs(args.train_triples)
 
     # load triples
     train_triples, test_triples, validation_triples = get_triples(args.train_triples,args.validation_triples,args.test_triples)
