@@ -3,11 +3,13 @@ import os
 os.environ['OMP_NUM_THREADS'] = '16' 
 # this must be set before pykeen in imported so that it can take effect before things get started
 
-from pykeen.pipeline import pipeline
+from pykeen.pipeline import pipeline, pipeline_from_path
 from pykeen.datasets.base import PathDataset
 from pykeen.pipeline import pipeline
 from pykeen.hpo import hpo_pipeline
 from optuna.samplers import RandomSampler, QMCSampler
+# import pipeline_from_path
+
 import torch
 
 import argparse
@@ -102,5 +104,5 @@ print('HPO pipeline result saved to PyKeenOut/{}'.format(study_name))
 print('Training best model')
 config = 'PyKeenOut/{}/best_pipeline/pipeline_config.json'.format(study_name)
 # train best model
-pipeline_result = pipeline_from_path(args.config,device='cuda')
-pipeline_result.save_to_directory(args.out)
+pipeline_result = pipeline_from_path(config,device='cuda')
+pipeline_result.save_to_directory('PyKeenOut/{}/'.format(study_name))

@@ -24,54 +24,54 @@ rule all:
         "ELs_for_Rotate/Monarch_HuRI_Filtered/valid.txt",
         "ELs_for_Rotate/Monarch_HuRI_Filtered/test.txt"
 
+# # Commented out to avoid rerunning the creation of the Monarch KG, which creates a version slightly different that what I trained on and changes test set results.
+# rule download:
+#     output:
+#         nodes="Monarch_KG/monarch-kg_nodes.2023-12-16.tsv",
+#         edges="Monarch_KG/monarch-kg_edges.2023-12-16.tsv"
+#     shell:
+#         """
+#         mkdir -p Monarch_KG/
+#         wget https://data.monarchinitiative.org/monarch-kg-dev/2023-12-16/monarch-kg.tar.gz
+#         tar -xf monarch-kg.tar.gz
+#         mv monarch-kg_edges.tsv Monarch_KG/monarch-kg_edges.2023-12-16.tsv
+#         mv monarch-kg_nodes.tsv Monarch_KG/monarch-kg_nodes.2023-12-16.tsv
+#         rm monarch-kg.tar.gz
+#         """
 
-rule download:
-    output:
-        nodes="Monarch_KG/monarch-kg_nodes.2023-12-16.tsv",
-        edges="Monarch_KG/monarch-kg_edges.2023-12-16.tsv"
-    shell:
-        """
-        mkdir -p Monarch_KG/
-        wget https://data.monarchinitiative.org/monarch-kg-dev/2023-12-16/monarch-kg.tar.gz
-        tar -xf monarch-kg.tar.gz
-        mv monarch-kg_edges.tsv Monarch_KG/monarch-kg_edges.2023-12-16.tsv
-        mv monarch-kg_nodes.tsv Monarch_KG/monarch-kg_nodes.2023-12-16.tsv
-        rm monarch-kg.tar.gz
-        """
+# rule create_triples:
+#     input:
+#         nodes="Monarch_KG/monarch-kg_nodes.2023-12-16.tsv",
+#         edges="Monarch_KG/monarch-kg_edges.2023-12-16.tsv"
+#     output:
+#         'Monarch_KG/monarch-kg_triples.2023-12-16.tsv'
+#     shell:
+#         """
+#         mkdir -p ELs_for_Rotate
+#         mkdir -p ELs_for_Rotate/Monarch_KG
 
-rule create_triples:
-    input:
-        nodes="Monarch_KG/monarch-kg_nodes.2023-12-16.tsv",
-        edges="Monarch_KG/monarch-kg_edges.2023-12-16.tsv"
-    output:
-        'Monarch_KG/monarch-kg_triples.2023-12-16.tsv'
-    shell:
-        """
-        mkdir -p ELs_for_Rotate
-        mkdir -p ELs_for_Rotate/Monarch_KG
+#         cat Monarch_KG/monarch-kg_edges.2023-12-16.tsv | cut -f3,18,19 | awk '{{print $2"\t"$1"\t"$3}}' | grep -v subject > {output}
+#         """
 
-        cat Monarch_KG/monarch-kg_edges.2023-12-16.tsv | cut -f3,18,19 | awk '{{print $2"\t"$1"\t"$3}}' | grep -v subject > {output}
-        """
-
-rule split_triples:
-    input:
-        "Monarch_KG/monarch-kg_triples.2023-12-16.tsv"
-    output:
-        train="ELs_for_Rotate/Monarch_KG/train.txt",
-        valid="ELs_for_Rotate/Monarch_KG/valid.txt",
-        test="ELs_for_Rotate/Monarch_KG/test.txt"
-    run:
-        # split the triples into train, valid, and test with .8, .1, .1 split
-        random.seed(42)
-        with open(output.train,'w') as train, open(output.valid,'w') as valid, open(output.test,'w') as test:
-            for line in open(input[0],'r'):
-                rand = random.random()
-                if rand < .8:
-                    train.write(line)
-                elif rand < .9:
-                    valid.write(line)
-                else:
-                    test.write(line)
+# rule split_triples:
+#     input:
+#         "Monarch_KG/monarch-kg_triples.2023-12-16.tsv"
+#     output:
+#         train="ELs_for_Rotate/Monarch_KG/train.txt",
+#         valid="ELs_for_Rotate/Monarch_KG/valid.txt",
+#         test="ELs_for_Rotate/Monarch_KG/test.txt"
+#     run:
+#         # split the triples into train, valid, and test with .8, .1, .1 split
+#         random.seed(42)
+#         with open(output.train,'w') as train, open(output.valid,'w') as valid, open(output.test,'w') as test:
+#             for line in open(input[0],'r'):
+#                 rand = random.random()
+#                 if rand < .8:
+#                     train.write(line)
+#                 elif rand < .9:
+#                     valid.write(line)
+#                 else:
+#                     test.write(line)
     
 rule map_HGNC_to_ENSG:
     input:

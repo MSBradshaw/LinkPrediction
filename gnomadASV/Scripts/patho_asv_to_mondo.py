@@ -39,6 +39,7 @@ def main():
             target_alt = row[3]
             target_chrom = row[0]
             hpos = []
+            print(target_chrom, target_pos, target_ref, target_alt)
             for record in vcf_file.fetch(target_chrom, target_pos - 1, target_pos):
                 if  record.pos == target_pos and record.ref == target_ref and target_alt in record.alts:
                     try:
@@ -49,7 +50,7 @@ def main():
                         continue
                     # print(terms)
                     for section in terms:
-                        if 'Human_Phenotype_Ontology' in section:
+                        if 'MONDO' in section:
                             # use regex to get HPO terms that match this patter: 'HP:\d\d\d\d\d\d\d' in section
                             tmp_hpos = [term for term in section.split('|') if 'MONDO:' in term]
                             tmp_hpos = [ x.replace('MONDO:MONDO:','MONDO:') for x in tmp_hpos]

@@ -183,9 +183,9 @@ rule patho_pop_specific_alleles_to_mondo:
         python Scripts/patho_asv_to_mondo.py --input {input.asv} --output {output} --clinvar {input.clinvar}
         '''
 
-rule aggregate_patho_pop_specific_alleles_to_hpo:
+rule aggregate_patho_pop_specific_alleles_to_mondo:
     input:
-        expand('work/PopSpecificPathogenicAPopSpecificPathogenicAllelesMONDOTermsllelesHPOTerms/chr{chr}_pathogenic_ancestry_groups.tsv',chr=CHRs)
+        expand('work/PopSpecificPathogenicAllelesMONDOTerms/chr{chr}_pathogenic_ancestry_groups.tsv',chr=CHRs)
     output:
         'work/PopSpecificPathogenicAllelesMONDOTerms/all_pathogenic_ancestry_groups.tsv'
     shell:
