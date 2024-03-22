@@ -28,26 +28,15 @@ ppi_names = {'original_monarch':'Monarch',
 # PPIs = ['original_monarch']
 # PPIs = ['original_monarch','string_filtered_t25','string_filtered_t50','string_filtered_t100']
 # PPIs = ['monarch_filtered','original_monarch']
-PPIs = ['original_monarch','HuRI','HuRI_filtered','monarch_filtered','string_filtered_t50','string_filtered_t100'] # all but t25 because rotate t25 is not ready yet
+# PPIs = ['original_monarch','HuRI','HuRI_filtered','monarch_filtered','string_filtered_t25', 'string_filtered_t50','string_filtered_t100', 'string_t25', 'string_t50', 'string_t100'] # all
+PPIs = ['original_monarch','HuRI','HuRI_filtered','monarch_filtered','string_filtered_t25', 'string_filtered_t50','string_filtered_t100'] # all but t25 because rotate t25 is not ready yet
 # Models = ['TransE','RotatE','ComplEx']
-Models = ['TransE','RotatE'] # so I can force run only TransE HuRI while I wait for the other two to finish running
+Models = ['TransE','RotatE'] # no comple because I dont have/wont ever have string results for it
 # Models = ['RotatE']
 # Models = ['ComplEx']
 GROUPS = ['Cancer', 'PedCancer', 'European', 'EastAsian', 'Latino', 'African', 'Female', 'Male', 'Random','UltraRareDisease','RareDisease']
 
 def generate_plotting_data(df:pd.DataFrame, G:nx.Graph, save_dir:str=None) -> pd.DataFrame:
-
-    # check if the save_dir exists and files exist already, if so load and return them
-    # if save_dir is not None:
-    #     if os.path.exists(save_dir):
-    #         print(f'Loading plotting data from {save_dir}')
-    #         avg_k_df = pd.read_csv(save_dir + 'avg_hits_at_k.tsv', sep='\t')
-    #         scored_df = pd.read_csv(save_dir + 'edges_scored_by_query_term.tsv', sep='\t')
-    #         k_df = pd.read_csv(save_dir + 'all_hits_at_k.tsv', sep='\t')
-    #         return avg_k_df, scored_df, k_df
-    #     else:
-    #         print('Generating plotting data')
-    #         # return # temporary safeguard to avoid rerunning for now
     
     # remove rows that were in the training set
     df['in_train'] = df.apply(lambda x: (x['head_label'], x['tail_label']) in G.edges, axis=1)
@@ -60,9 +49,24 @@ def generate_plotting_data(df:pd.DataFrame, G:nx.Graph, save_dir:str=None) -> pd
     df = df.sort_values(by='score', ascending=False)
     df['rank'] = df['score'].rank(pct=True)
 
+    # find query terms that have atleast 1 test sest edge
+    queries_to_keep = []
+    for q in df['query_term'].unique():
+        # where query term is q and in_test_set is True
+        test_set_edges = df[(df['query_term'] == q) & (df['in_test_set'] == True)]
+        if len(test_set_edges) > 0:
+            queries_to_keep.append(q)
+    print(queries_to_keep)
+
+    if len(queries_to_keep) == 0:
+        # return empty dataframes
+        # throw an error and message
+        # print('No query terms have test set edges')
+        exit(1, 'No query terms have test set edges')
+
     k_df = None # will contain all the hits at K data
     scored_df = None # will contain the data with ranks assigned by query term instead of globally
-    for q in df['query_term'].unique():
+    for q in queries_to_keep:
         sub = df[df['query_term'] == q]
         # sort by score in descending order
         df = df.sort_values(by='score', ascending=False)
@@ -153,11 +157,11 @@ def get_model(ppi,model):
     elif ppi == 'original_monarch':
         return 'Models/{}_monarch.trained_model.pkl'.format(model)
     elif ppi == 'string_filtered_t25':
-        return 'Models/{}_monarch_string_filtered_t25_new.trained_model.pkl'.format(model)
+        return 'Models/{}_monarch_string_filtered_t25_optimized.trained_model.pkl'.format(model)
     elif ppi == 'string_filtered_t50':
-        return 'Models/{}_monarch_string_filtered_t50_new.trained_model.pkl'.format(model)
+        return 'Models/{}_monarch_string_filtered_t50_optimized.trained_model.pkl'.format(model)
     elif ppi == 'string_filtered_t100':
-        return 'Models/{}_monarch_string_filtered_t100_new.trained_model.pkl'.format(model)
+        return 'Models/{}_monarch_string_filtered_t100_optimized.trained_model.pkl'.format(model)
     elif ppi == 'string_t25':
         return 'Models/{}_monarch_kg_string_t25.trained_model.pkl'.format(model)
     elif ppi == 'string_t50':
@@ -603,7 +607,7 @@ rule cancer_rank_results:
         terms = 'work_comparison/cancer_genes.txt'
     output:
         'GroupRankResults/{PPI}/{model}/AllResults/Cancer.comparison_results.tsv'
-    threads: 2
+    threads: 1
     params:
         model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
         train = lambda wildcards: get_train(wildcards.PPI),
@@ -631,7 +635,7 @@ rule random_rank_results:
         terms = 'work_comparison/random_500_genes.txt'
     output:
         'GroupRankResults/{PPI}/{model}/AllResults/Random.comparison_results.tsv'
-    threads: 2
+    threads: 1
     params:
         model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
         train = lambda wildcards: get_train(wildcards.PPI),
@@ -659,7 +663,7 @@ rule pediatric_cancer_rank_results:
         terms = 'work_comparison/pediatric_cancer_genes.txt'
     output:
         'GroupRankResults/{PPI}/{model}/AllResults/PedCancer.comparison_results.tsv'
-    threads: 2
+    threads: 1
     params:
         model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
         train = lambda wildcards: get_train(wildcards.PPI),
@@ -687,7 +691,7 @@ rule female_sex_differentially_expressed_ranked_results:
         female='work_comparison/female_differentially_expressed_genes.txt'
     output:
         female='GroupRankResults/{PPI}/{model}/AllResults/Female.comparison_results.tsv'
-    threads: 2
+    threads: 1
     params:
         model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
         train = lambda wildcards: get_train(wildcards.PPI),
@@ -718,7 +722,7 @@ rule male_sex_differentially_expressed_ranked_results:
         male='work_comparison/male_differentially_expressed_genes.txt'
     output:
         male='GroupRankResults/{PPI}/{model}/AllResults/Male.comparison_results.tsv'
-    threads: 2
+    threads: 1
     params:
         model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
         train = lambda wildcards: get_train(wildcards.PPI),
@@ -756,7 +760,7 @@ rule asvd_ranked_results:
         african='GroupRankResults/{PPI}/{model}/AllResults/African.comparison_results.tsv',
         latino='GroupRankResults/{PPI}/{model}/AllResults/Latino.comparison_results.tsv',
         east_asian='GroupRankResults/{PPI}/{model}/AllResults/EastAsian.comparison_results.tsv'
-    threads: 2
+    threads: 1
     params:
         model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
         train = lambda wildcards: get_train(wildcards.PPI),
@@ -827,7 +831,7 @@ rule ultra_rare_disease_rank_results:
         'OrphanetEpidemiology/300_mondo_ids.txt'
     output:
         'GroupRankResults/{PPI}/{model}/AllResults/UltraRareDisease.comparison_results.tsv'
-    threads: 2
+    threads: 1
     params:
         model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
         train = lambda wildcards: get_train(wildcards.PPI),
@@ -855,7 +859,7 @@ rule rare_disease_rank_results:
         'OrphanetEpidemiology/290_non_ultra_rare.mondo_ids.tsv'
     output:
         'GroupRankResults/{PPI}/{model}/AllResults/RareDisease.comparison_results.tsv'
-    threads: 2
+    threads: 1
     params:
         model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
         train = lambda wildcards: get_train(wildcards.PPI),
@@ -902,8 +906,6 @@ rule generate_hits_at_k_plotting_data:
         G = get_el_as_G(wildcards.PPI)
         avg_df, scored_df, k_df = generate_plotting_data(df, G, f'RankedResultsIntermediate/{wildcards.PPI}/{wildcards.model}/{wildcards.group}/')
 
-'RankedResultsIntermediate/original_monarch/TransE/'
-
 def plot_kurve(ppi_model_dir:str,title:str,outfile:str):
     if ppi_model_dir[-1] != '/':
         ppi_model_dir += '/'
@@ -912,30 +914,49 @@ def plot_kurve(ppi_model_dir:str,title:str,outfile:str):
     dirs = ['Female','Male','Cancer','PedCancer','RareDisease', 'UltraRareDisease','African','EastAsian','European','Latino','Random']
     dirs_names = ['Female','Male','Cancer','Pediatric Cancer','Rare Disease', 'Ultra Rare Disease','African','East Asian','European','Latino','Random']
     
-    fig, axes = plt.subplots(1,2,figsize=(10,5), gridspec_kw={'width_ratios': [3, 1]})
+    gene_dir_names = ['Female','Male','Cancer','Pediatric Cancer','Random']
+    gene_groups = ['Female','Male','Cancer','PedCancer','Random']
+    non_gene_dir_names = ['Rare Disease', 'Ultra Rare Disease','African','East Asian','European','Latino']
+    
+    fig, axes = plt.subplots(2,2,figsize=(10,10), gridspec_kw={'width_ratios': [3, 1]})
     for i,d in enumerate(dirs):
         try:
             df = pd.read_csv(ppi_model_dir + d + '/avg_hits_at_k.tsv',sep='\t')
         except FileNotFoundError:
             print(f'No file found for {d}')
             continue
-        axes[0].plot(df['k'], df['percent_hits@k'], label=dirs_names[i],color=dirs2color[d])
+        if d in gene_groups:
+            axes[0,0].plot(df['k'], df['percent_hits@k'], label=dirs_names[i],color=dirs2color[d])
+        else:
+            axes[1,0].plot(df['k'], df['percent_hits@k'], label=dirs_names[i],color=dirs2color[d])
+    axes[0,0].set_xlabel('k')
+    axes[0,0].set_ylabel('mean % hits@k')
+    
+    axes[1,0].set_xlabel('k')
+    axes[1,0].set_ylabel('mean % hits@k')
 
-    axes[0].set_xlabel('k')
-    axes[0].set_ylabel('mean % hits@k')
-    axes[0].set_title(title)
-    axes[0].spines['top'].set_visible(False)
-    axes[0].spines['right'].set_visible(False)
+    axes[0,0].set_title(title)
+    axes[1,0].set_title(title)
+    
+    axes[0,0].spines['top'].set_visible(False)
+    axes[0,0].spines['right'].set_visible(False)
+    axes[1,0].spines['top'].set_visible(False)
+    axes[1,0].spines['right'].set_visible(False)
+    # axes[0].legend()
 
     # create a custom legend to put in axes[1] of the dirs_names and colors
-    custom_lines = [plt.Line2D([0], [0], color=dirs2color[d], lw=2) for d in dirs]
-    axes[1].legend(custom_lines, dirs_names, loc='center', title='Group', frameon=False)
-    axes[1].axis('off')
+    custom_lines_genes = [plt.Line2D([0], [0], color=dirs2color[d], lw=2) for d in dirs if d in gene_groups]
+    axes[0,1].legend(custom_lines_genes, gene_dir_names, loc='center', title='Group', frameon=False)
+
+    custom_lines_non_genes = [plt.Line2D([0], [0], color=dirs2color[d], lw=2) for d in dirs if d not in gene_groups]
+    axes[1,1].legend(custom_lines_non_genes, non_gene_dir_names, loc='center', title='Group', frameon=False)
+    axes[0,1].axis('off')
+    axes[1,1].axis('off')
 
     plt.tight_layout()
     plt.savefig(outfile,dpi=300)
-    # plt.show()
     plt.clf()
+    
 
 rule plot_hits_at_kurve:
     input:
