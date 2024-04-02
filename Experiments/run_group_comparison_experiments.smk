@@ -24,11 +24,12 @@ ppi_names = {'original_monarch':'Monarch',
 
 # PPIs = ['original_monarch','HuRI','HuRI_filtered','monarch_filtered','string_filtered_t25', 'string_filtered_t50','string_filtered_t100', 'string_t25', 'string_t50', 'string_t100'] # all
 PPIs = ['original_monarch','HuRI','HuRI_filtered','monarch_filtered','string_filtered_t25', 'string_filtered_t50','string_filtered_t100'] # all but t25 because rotate t25 is not ready yet
-# Models = ['TransE','RotatE','ComplEx']
-Models = ['TransE','RotatE'] # no comple because I dont have/wont ever have string results for it
+PPIs = ['original_monarch','HuRI_filtered','monarch_filtered','string_filtered_t25', 'string_filtered_t50','string_filtered_t100'] # all but t25 because rotate t25 is not ready yet
+Models = ['TransE','RotatE','ComplEx']
+# Models = ['TransE','RotatE'] # no comple because I dont have/wont ever have string results for it
 GROUPS = ['Cancer', 'PedCancer', 'European', 'EastAsian', 'Latino', 'African', 'Female', 'Male', 'Random','UltraRareDisease','RareDisease','RandomDiseases']
 
-def generate_plotting_data(df:pd.DataFrame, G:nx.Graph, save_dir:str=None) -> pd.DataFrame:
+def generate_plotting_data(df:pd.DataFrame, G:nx.Graph, save_dir:str=None, filter_on_query_test_prescense=True) -> pd.DataFrame:
     # remove rows that were in the training set
     df['in_train'] = df.apply(lambda x: (x['head_label'], x['tail_label']) in G.edges, axis=1)
     df = df[~df['in_train']]
@@ -49,15 +50,23 @@ def generate_plotting_data(df:pd.DataFrame, G:nx.Graph, save_dir:str=None) -> pd
             queries_to_keep.append(q)
     print(queries_to_keep)
 
-    if len(queries_to_keep) == 0:
-        # return empty dataframes
-        # throw an error and message
-        # print('No query terms have test set edges')
-        exit(1, 'No query terms have test set edges')
+    queries_to_process = None
+
+    if filter_on_query_test_prescense:
+        if len(queries_to_keep) == 0:
+            # return empty dataframes
+            # throw an error and message
+            # print('No query terms have test set edges')
+            exit(1, 'No query terms have test set edges')
+        queries_to_process = queries_to_keep
+    else:
+        queries_to_process = df['query_term'].unique()
+
+
 
     k_df = None # will contain all the hits at K data
     scored_df = None # will contain the data with ranks assigned by query term instead of globally
-    for q in queries_to_keep:
+    for q in queries_to_process:
         sub = df[df['query_term'] == q]
         # sort by score in descending order
         df = df.sort_values(by='score', ascending=False)
@@ -99,30 +108,12 @@ def generate_plotting_data(df:pd.DataFrame, G:nx.Graph, save_dir:str=None) -> pd
 
 rule all:
     input:
-        # expand('work_comparison/mondo_terms.{population}.txt',population=POPs),
-        # expand('GroupComparisonResults/{PPI}/{model}/ASVD/euro_afr_gene_causes_mondo_European_v_African_g2p_rankings_hist.csv', PPI=PPIs, model=Models),
-        # expand('GroupComparisonResults/{PPI}/{model}/ASVD/euro_latino_gene_causes_mondo_European_v_Latino_g2p_rankings_hist.csv', PPI=PPIs, model=Models),
-        # expand('GroupComparisonResults/{PPI}/{model}/ASVD/euro_eas_gene_causes_mondo_European_v_East_Asian_g2p_rankings_hist.csv', PPI=PPIs, model=Models),
-        # 'work_comparison/female_differentially_expressed_genes.txt',
-        # 'work_comparison/male_differentially_expressed_genes.txt',
-        # expand('GroupComparisonResults/{PPI}/{model}/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.csv',PPI=PPIs, model=Models),
-        # expand('GroupComparisonResults/{PPI}/{model}/SexDiffExpShards/sex_diff_genes_mondo_{i}_Female_v_Male_g2p_rankings_hist.csv',i=SEX_SHARDS, PPI=PPIs, model=Models),
-        # 'work_comparison/cancer_genes.txt',
-        # expand('GroupComparisonResults/{PPI}/{model}/CancerVsRandom/monarch_transE_Cancer_v_Random_500_42_g2p_rankings_hist.csv', PPI=PPIs, model=Models),
-        # expand('GroupComparisonResults/{PPI}/{model}/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.png', PPI=PPIs, model=Models),
-        # expand('GroupComparisonResults/{PPI}/{model}/SexDiffExp/sex_diff_genes_mondo_Female_v_Male_g2p_rankings_hist.txt', PPI=PPIs, model=Models),
-        # expand('GroupComparisonResults/{PPI}/{model}/PediatricCancerVsRandom/pediatric_Pediatric_Cancer_v_Random_500_42_g2p_rankings_hist.csv', PPI=PPIs, model=Models),
-        # expand('GroupRankResults/{PPI}/{model}/Cancer/cancer.tsv', PPI=PPIs, model=Models),
-        # expand('GroupRankResults/{PPI}/{model}/SexDiffExp/female_differentially_expressed_genes.tsv', PPI=PPIs, model=Models),
-        # expand('GroupRankResults/{PPI}/{model}/SexDiffExp/male_differentially_expressed_genes.tsv', PPI=PPIs, model=Models),
-        # expand('GroupRankResults/{PPI}/{model}/PediatricCancer/pediatric_cancer.tsv', PPI=PPIs, model=Models),
-        # expand('GroupRankResults/{PPI}/{model}/ASVD/european.tsv', PPI=PPIs, model=Models),
-        # expand('GroupRankResults/{PPI}/{model}/ASVD/african.tsv', PPI=PPIs, model=Models),
-        # expand('GroupRankResults/{PPI}/{model}/ASVD/latino.tsv', PPI=PPIs, model=Models),
-        # expand('GroupRankResults/{PPI}/{model}/ASVD/east_asian.tsv', PPI=PPIs, model=Models)
         expand('GroupRankResults/{PPI}/{model}/AllResults/{group}.comparison_results.tsv', PPI=PPIs, model=Models, group=GROUPS),
         expand('RankedResultsIntermediate/{PPI}/{model}/{group}/avg_hits_at_k.tsv', PPI=PPIs, model=Models, group=GROUPS),
-        expand('HitsAtKurvePlots/kurve.{PPI}.{model}.png', PPI=PPIs, model=Models)
+        expand('HitsAtKurvePlots/kurve.{PPI}.{model}.png', PPI=PPIs, model=Models),
+        'RankedResultsIntermediate/combined_avg_hits_at_k.tsv',
+        'RankedResultsIntermediate/combined_avg_hits_at_k.filtered.tsv',
+        'work_comparison/stats_about_groups_and_ppi.tsv'
 
 def load_ancestry_hpo_file(_f):
     _hpos = []
@@ -164,7 +155,7 @@ def get_model(ppi,model):
 
 def get_test(ppi):
     if ppi == 'HuRI':
-        return 'ELs_for_Rotate/Monarch_HuRI/monarch_HuRI.test.tsv'
+        return 'ELs_for_Rotate/Monarch_HuRI/test.txt'
     elif ppi == 'HuRI_filtered':
         return 'ELs_for_Rotate/Monarch_HuRI_Filtered/test.txt'
     elif ppi == 'monarch_filtered':
@@ -178,17 +169,17 @@ def get_test(ppi):
     elif ppi == 'string_filtered_t100':
         return 'ELs_for_Rotate/Monarch_STRING_Filtered_t100_new/test.txt'
     elif ppi == 'string_t25':
-        return 'ELs_for_Rotate/Monarch_STRING_t25/test.txt'
+        return 'ELs_for_Rotate/Monarch_STRING_t25_new/test.txt'
     elif ppi == 'string_t50':
-        return 'ELs_for_Rotate/Monarch_STRING_t50/test.txt'
+        return 'ELs_for_Rotate/Monarch_STRING_t50_new/test.txt'
     elif ppi == 'string_t100':
-        return 'ELs_for_Rotate/Monarch_STRING_t100/test.txt'
+        return 'ELs_for_Rotate/Monarch_STRING_t100_new/test.txt'
     else:
         raise ValueError('Unknown PPI: ' + ppi)
 
 def get_train(ppi):
     if ppi == 'HuRI':
-        return 'ELs_for_Rotate/Monarch_HuRI/monarch_HuRI.train.tsv'
+        return 'ELs_for_Rotate/Monarch_HuRI/train.txt'
     elif ppi == 'HuRI_filtered':
         return 'ELs_for_Rotate/Monarch_HuRI_Filtered/train.txt'
     elif ppi == 'monarch_filtered':
@@ -202,17 +193,17 @@ def get_train(ppi):
     elif ppi == 'string_filtered_t100':
         return 'ELs_for_Rotate/Monarch_STRING_Filtered_t100_new/train.txt'
     elif ppi == 'string_t25':
-        return 'ELs_for_Rotate/Monarch_STRING_t25/train.txt'
+        return 'ELs_for_Rotate/Monarch_STRING_t25_new/train.txt'
     elif ppi == 'string_t50':
-        return 'ELs_for_Rotate/Monarch_STRING_t50/train.txt'
+        return 'ELs_for_Rotate/Monarch_STRING_t50_new/train.txt'
     elif ppi == 'string_t100':
-        return 'ELs_for_Rotate/Monarch_STRING_t100/train.txt'
+        return 'ELs_for_Rotate/Monarch_STRING_t100_new/train.txt'
     else:
         raise ValueError('Unknown PPI: ' + ppi)
 
 def get_valid(ppi):
     if ppi == 'HuRI':
-        return 'ELs_for_Rotate/Monarch_HuRI/monarch_HuRI.valid.tsv'
+        return 'ELs_for_Rotate/Monarch_HuRI/valid.txt'
     elif ppi == 'HuRI_filtered':
         return 'ELs_for_Rotate/Monarch_HuRI_Filtered/valid.txt'
     elif ppi == 'monarch_filtered':
@@ -226,11 +217,11 @@ def get_valid(ppi):
     elif ppi == 'string_filtered_t100':
         return 'ELs_for_Rotate/Monarch_STRING_Filtered_t100_new/valid.txt'
     elif ppi == 'string_t25':
-        return 'ELs_for_Rotate/Monarch_STRING_t25/valid.txt'
+        return 'ELs_for_Rotate/Monarch_STRING_t25_new/valid.txt'
     elif ppi == 'string_t50':
-        return 'ELs_for_Rotate/Monarch_STRING_t50/valid.txt'
+        return 'ELs_for_Rotate/Monarch_STRING_t50_new/valid.txt'
     elif ppi == 'string_t100':
-        return 'ELs_for_Rotate/Monarch_STRING_t100/valid.txt'
+        return 'ELs_for_Rotate/Monarch_STRING_t100_new/valid.txt'
     else:
         raise ValueError('Unknown PPI: ' + ppi)
 
@@ -695,7 +686,10 @@ rule generate_hits_at_k_plotting_data:
     output:
         avg_hits_at_k = 'RankedResultsIntermediate/{PPI}/{model}/{group}/avg_hits_at_k.tsv',
         edges_scored_by_query_term = 'RankedResultsIntermediate/{PPI}/{model}/{group}/edges_scored_by_query_term.tsv',
-        all_hits_at_k = 'RankedResultsIntermediate/{PPI}/{model}/{group}/all_hits_at_k.tsv'
+        all_hits_at_k = 'RankedResultsIntermediate/{PPI}/{model}/{group}/all_hits_at_k.tsv',
+        f_avg_hits_at_k = 'RankedResultsIntermediate/{PPI}/{model}/{group}/avg_hits_at_k.filtered.tsv',
+        f_edges_scored_by_query_term = 'RankedResultsIntermediate/{PPI}/{model}/{group}/edges_scored_by_query_term.filtered.tsv',
+        f_all_hits_at_k = 'RankedResultsIntermediate/{PPI}/{model}/{group}/all_hits_at_k.filtered.tsv'
     params:
         train = lambda wildcards: get_train(wildcards.PPI),
         valid = lambda wildcards: get_valid(wildcards.PPI)
@@ -704,66 +698,20 @@ rule generate_hits_at_k_plotting_data:
         python Scripts/generate_kurve_plotting_data.py --train_path {params.train} \
                                                     --valid_path {params.valid} \
                                                     --save_dir RankedResultsIntermediate/{wildcards.PPI}/{wildcards.model}/{wildcards.group}/ \
-                                                    --df_path {input} 
+                                                    --df_path {input} \
+                                                    --filter
+
+        python Scripts/generate_kurve_plotting_data.py --train_path {params.train} \
+                                                    --valid_path {params.valid} \
+                                                    --save_dir RankedResultsIntermediate/{wildcards.PPI}/{wildcards.model}/{wildcards.group}/ \
+                                                    --df_path {input}
         """
-
-def plot_kurve(ppi_model_dir:str,title:str,outfile:str):
-    if ppi_model_dir[-1] != '/':
-        ppi_model_dir += '/'
-    
-    dirs2color = {'Female':'#b66dff','Male':'#006ddb','Cancer':'#920000','PedCancer':'#ff6db6','RareDisease':'#004949', 'UltraRareDisease':'#009999','African':'#db6d00','EastAsian':'#22cf22','European':'#8f4e00','Latino':'#490092','Random':'#676767','RandomDiseases':'#e6e6e6'}
-    dirs = ['Female','Male','Cancer','PedCancer','RareDisease', 'UltraRareDisease','African','EastAsian','European','Latino','Random','RandomDiseases']
-    dirs_names = ['Female','Male','Cancer','Pediatric Cancer','Rare Disease', 'Ultra Rare Disease','African','East Asian','European','Latino','Random Genes']
-    
-    gene_dir_names = ['Female','Male','Cancer','Pediatric Cancer','Random']
-    gene_groups = ['Female','Male','Cancer','PedCancer','Random']
-    non_gene_dir_names = ['Rare Disease', 'Ultra Rare Disease','African','East Asian','European','Latino']
-    
-    fig, axes = plt.subplots(2,2,figsize=(10,10), gridspec_kw={'width_ratios': [3, 1]})
-    for i,d in enumerate(dirs):
-        try:
-            df = pd.read_csv(ppi_model_dir + d + '/avg_hits_at_k.tsv',sep='\t')
-        except FileNotFoundError:
-            print(f'No file found for {d}')
-            continue
-        if d in gene_groups:
-            axes[0,0].plot(df['k'], df['percent_hits@k'], label=dirs_names[i],color=dirs2color[d])
-        else:
-            axes[1,0].plot(df['k'], df['percent_hits@k'], label=dirs_names[i],color=dirs2color[d])
-    axes[0,0].set_xlabel('k')
-    axes[0,0].set_ylabel('mean % hits@k')
-    
-    axes[1,0].set_xlabel('k')
-    axes[1,0].set_ylabel('mean % hits@k')
-
-    axes[0,0].set_title(title)
-    axes[1,0].set_title(title)
-    
-    axes[0,0].spines['top'].set_visible(False)
-    axes[0,0].spines['right'].set_visible(False)
-    axes[1,0].spines['top'].set_visible(False)
-    axes[1,0].spines['right'].set_visible(False)
-    # axes[0].legend()
-
-    # create a custom legend to put in axes[1] of the dirs_names and colors
-    custom_lines_genes = [plt.Line2D([0], [0], color=dirs2color[d], lw=2) for d in dirs if d in gene_groups]
-    axes[0,1].legend(custom_lines_genes, gene_dir_names, loc='center', title='Group', frameon=False)
-
-    custom_lines_non_genes = [plt.Line2D([0], [0], color=dirs2color[d], lw=2) for d in dirs if d not in gene_groups]
-    axes[1,1].legend(custom_lines_non_genes, non_gene_dir_names, loc='center', title='Group', frameon=False)
-    axes[0,1].axis('off')
-    axes[1,1].axis('off')
-
-    plt.tight_layout()
-    plt.savefig(outfile,dpi=300)
-    plt.clf()
-    
 
 rule plot_hits_at_kurve:
     input:
-        avg_hits_at_k = expand('RankedResultsIntermediate/{PPI}/{model}/{group}/avg_hits_at_k.tsv', PPI='{PPI}', model='{model}', group=GROUPS),
+        avg_hits_at_k = expand('RankedResultsIntermediate/{PPI}/{model}/{group}/avg_hits_at_k{filtered}.tsv', PPI='{PPI}', model='{model}', group=GROUPS, filtered=['', '.filtered']),
     output:
-        'HitsAtKurvePlots/kurve.{PPI}.{model}.png'
+        'HitsAtKurvePlots/kurve.{PPI}.{model}{filtered}.png'
     params:
         ppi_name = None
     shell:
@@ -773,3 +721,99 @@ rule plot_hits_at_kurve:
                                     --title {wildcards.PPI} \
                                     --outfile {output}
         """
+
+rule annotate_hits_at_kurve:
+    input:
+        avg_hits_at_k = 'RankedResultsIntermediate/{PPI}/{model}/{group}/avg_hits_at_k{filtered}.tsv'
+    output:
+        'RankedResultsIntermediate/{PPI}/{model}/{group}/avg_hits_at_k.annotated{filtered}.tsv'
+    run:
+        df = pd.read_csv(input[0], sep='\t')
+        df['group'] = wildcards.group
+        df['model'] = wildcards.model
+        df['ppi'] = wildcards.PPI
+        df.to_csv(output[0], sep='\t', index=False)
+
+rule combine_hits_at_kurve:
+    input:
+        expand('RankedResultsIntermediate/{PPI}/{model}/{group}/avg_hits_at_k.annotated{filtered}.tsv', PPI=PPIs, model=Models, group=GROUPS, filtered='{filtered}')
+    output:
+        'RankedResultsIntermediate/combined_avg_hits_at_k{filtered}.tsv'
+    run:
+        df = pd.concat([pd.read_csv(f, sep='\t') for f in input])
+        df.to_csv(output[0], sep='\t', index=False)
+
+rule combine_edges_scored_by_query_term:
+    input:
+        expand('RankedResultsIntermediate/{PPI}/{model}/{group}/edges_scored_by_query_term.tsv', PPI=PPIs, model=Models, group=GROUPS)
+    output:
+        'RankedResultsIntermediate/combined_edges_scored_by_query_term.tsv'
+    run:
+        combined_df = None
+        for f in input:
+            df = pd.read_csv(f, sep='\t')
+            df['model'] = f.split('/')[2]
+            df['ppi'] = f.split('/')[1]
+            df['group'] = f.split('/')[3]
+            if combined_df == None:
+                combined_df = df
+            else:
+                combined_df = pd.concat([combined_df, df])
+        combined_df.to_csv(output[0], sep='\t', index=False)
+
+
+            
+
+rule generate_stats_about_groups_and_ppi:
+    input:
+        cancer = 'work_comparison/cancer_genes.txt',
+        random = 'work_comparison/random_500_genes.txt',
+        random_diseases = 'work_comparison/random_300_diseases.txt',
+        pedcancer = 'work_comparison/pediatric_cancer_genes.txt',
+        female='work_comparison/female_differentially_expressed_genes.txt',
+        male='work_comparison/male_differentially_expressed_genes.txt',
+        african='work_comparison/mondo_terms.afr.txt',
+        latino='work_comparison/mondo_terms.amr.txt',
+        east_asian='work_comparison/mondo_terms.eas.txt',
+        european='work_comparison/mondo_terms.nfe_onf.txt',
+        ultra_rare='OrphanetEpidemiology/300_mondo_ids.txt',
+        rare_disease='OrphanetEpidemiology/290_non_ultra_rare.mondo_ids.tsv'
+    output:
+        'work_comparison/stats_about_groups_and_ppi.tsv'
+    params:
+        ppis = PPIs
+    run:
+        groups2names = {
+        'work_comparison/cancer_genes.txt':'Cancer',
+        'work_comparison/random_500_genes.txt':'Random Genes',
+        'work_comparison/random_300_diseases':'Random Diseases',
+        'work_comparison/pediatric_cancer_genes.txt':'Pediatric Cancer',
+        'work_comparison/female_differentially_expressed_genes.txt':'Female',
+        'work_comparison/male_differentially_expressed_genes.txt':'Male',
+        'work_comparison/mondo_terms.afr.txt':'African',
+        'work_comparison/mondo_terms.amr.txt':'Latino',
+        'work_comparison/mondo_terms.eas.txt':'East Asian',
+        'work_comparison/mondo_terms.nfe_onf.txt':'European',
+        'OrphanetEpidemiology/300_mondo_ids.txt':'Ultra Rare Diseases',
+        'OrphanetEpidemiology/290_non_ultra_rare.mondo_ids.tsv':'Rare Diseases'
+        }
+        # for each input keep only the HGNC and MONDO terms in them
+        groups = {}
+        for input_file in inputs:
+            groups[input_file] = []
+            for line in open(input_file,'r'):
+                if 'HGNC' in line or 'MONDO' in line:
+                    groups[input_file].append(line.strip())
+        data = {'group':[],'KG':[],'total':[],'train':[],'valid':[],'test':[]}
+        for group in groups:
+            print(group)
+            for ppi in params.ppis:
+                data['group'].append(groups2names[group])
+                data['KG'].append(groups2names[ppi])
+                data['train'].append(count_group_occurances(groups[group],get_train(ppi)))
+                data['valid'].append(count_group_occurances(groups[group],get_valid(ppi)))
+                data['test'].append(count_group_occurances(groups[group],get_test(ppi)))
+                data['total'].append(data['train'][-1]+data['valid'][-1]+data['test'][-1])
+        df = pd.DataFrame(data)
+        df.to_csv(output[0],sep='\t',index=False)
+            
