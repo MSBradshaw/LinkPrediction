@@ -8,21 +8,30 @@ The purpose of this pipeline is to download and process the Monarch KG data so t
 dates = ["2022-09-27", "2023-03-16", "2023-09-28"]
 types = ["edges", "nodes"]
 
+meta_types = ['dictyBase','NCBIGene','PomBase','Xenbase','RGD','Reactome','MGI','SGD','FB','WB','ZFIN','NCIT','HSAPDV','NCBITaxon','SO','PATO','CL','CHR','CHEBI','UBERON','GO','HP']
 
 rule all:
     input:
         "ELs_for_Rotate/Monarch_KG/test.txt",
         "ELs_for_Rotate/Monarch_KG/train.txt",
         "ELs_for_Rotate/Monarch_KG/valid.txt",
-        "ELs_for_Rotate/Monarch_HuRI/monarch_HuRI.train.tsv",
-        "ELs_for_Rotate/Monarch_HuRI/monarch_HuRI.valid.tsv",
-        "ELs_for_Rotate/Monarch_HuRI/monarch_HuRI.test.tsv",
+        "ELs_for_Rotate/Monarch_HuRI/train.txt",
+        "ELs_for_Rotate/Monarch_HuRI/valid.txt",
+        "ELs_for_Rotate/Monarch_HuRI/test.txt",
         "ELs_for_Rotate/Monarch_KG_Filtered/train.txt",
         "ELs_for_Rotate/Monarch_KG_Filtered/valid.txt",
         "ELs_for_Rotate/Monarch_KG_Filtered/test.txt",
         "ELs_for_Rotate/Monarch_HuRI_Filtered/train.txt",
         "ELs_for_Rotate/Monarch_HuRI_Filtered/valid.txt",
-        "ELs_for_Rotate/Monarch_HuRI_Filtered/test.txt"
+        "ELs_for_Rotate/Monarch_HuRI_Filtered/test.txt",
+        expand('Metanode_ELs/{meta_type}/train.txt', meta_type=meta_types),
+        expand('Metanode_ELs/{meta_type}/valid.txt', meta_type=meta_types),
+        expand('Metanode_ELs/{meta_type}/test.txt', meta_type=meta_types),
+        "Metanode_ELs/CC/train.txt",
+        "Metanode_ELs/CC/valid.txt",
+        "Metanode_ELs/CC/test.txt",
+        "Metanode_ELs/CC/all.txt"
+
 
 # # Commented out to avoid rerunning the creation of the Monarch KG, which creates a version slightly different that what I trained on and changes test set results.
 # rule download:
@@ -133,21 +142,38 @@ rule make_monarch_HuRI:
     input:
         mapping="Resources/HGNC_to_ENSG.tsv",
         huri="Resources/huri.hgnc.triples.tsv",
-        train="ELs_for_Rotate/Monarch_KG/train.txt",
-        valid="ELs_for_Rotate/Monarch_KG/valid.txt",
-        test="ELs_for_Rotate/Monarch_KG/test.txt"
+        monarch="Monarch_KG/monarch-kg_triples.2023-12-16.tsv"
     output:
-        train="ELs_for_Rotate/Monarch_HuRI/monarch_HuRI.train.tsv",
-        valid="ELs_for_Rotate/Monarch_HuRI/monarch_HuRI.valid.tsv",
-        test= "ELs_for_Rotate/Monarch_HuRI/monarch_HuRI.test.tsv"
+        monarch_huri="Resources/monarch_HuRI.triples.tsv",
     shell:
         """
         mkdir -p ELs_for_Rotate/Monarch_HuRI
-        python Scripts/create_monarch_huri.py -a {input.train} -b {input.huri} -p 'HGNC' -o {output.train}
-        python Scripts/create_monarch_huri.py -a {input.valid} -b {input.huri} -p 'HGNC' -o {output.valid}
-        python Scripts/create_monarch_huri.py -a {input.test} -b {input.huri} -p 'HGNC' -o {output.test}
+        python Scripts/create_monarch_huri.py -a {input.monarch} -b {input.huri} -p 'HGNC' -o {output.monarch_huri}.tmp
+        # remove duplicates
+        cat {output.monarch_huri}.tmp | sort | uniq > {output.monarch_huri}
+        rm {output.monarch_huri}.tmp
         """
 
+rule split_monarch_HuRI:
+    input:
+        monarch_huri="Resources/monarch_HuRI.triples.tsv"
+    output:
+        train="ELs_for_Rotate/Monarch_HuRI/train.txt",
+        valid="ELs_for_Rotate/Monarch_HuRI/valid.txt",
+        test= "ELs_for_Rotate/Monarch_HuRI/test.txt"
+    run:
+        os.makedirs('ELs_for_Rotate/Monarch_HuRI', exist_ok=True)
+        # split the triples into train, valid, and test with .8, .1, .1 split
+        random.seed(42)
+        with open(output.train,'w') as train, open(output.valid,'w') as valid, open(output.test,'w') as test:
+            for line in open(input[0],'r'):
+                rand = random.random()
+                if rand < .8:
+                    train.write(line)
+                elif rand < .9:
+                    valid.write(line)
+                else:
+                    test.write(line)
 
 rule keep_only_hgnc_mondo:
     input:
@@ -176,7 +202,10 @@ rule make_monarch_HuRI_filtered:
     shell:
         """
         mkdir -p ELs_for_Rotate/Monarch_HuRI_Filtered
-        python Scripts/create_monarch_huri.py -a {input.monarch} -b {input.huri} -p 'HGNC' -o {output.out}
+        python Scripts/create_monarch_huri.py -a {input.monarch} -b {input.huri} -p 'HGNC' -o {output.out}.tmp
+        # remove duplicates
+        cat {output.out}.tmp | sort | uniq > {output.out}
+        rm {output.out}.tmp
         """
 
 rule split_monarch_filtered_triples:
@@ -220,3 +249,71 @@ rule split_huri_filtered_triples:
                     valid.write(line)
                 else:
                     test.write(line)
+
+# ------------------ Make metanode ELs ------------------
+rule make_meta_els:
+    input:
+        "Monarch_KG/monarch-kg_triples.2023-12-16.tsv"
+    output:
+        train="Metanode_ELs/{meta_type}/train.txt",
+        valid="Metanode_ELs/{meta_type}/valid.txt",
+        test="Metanode_ELs/{meta_type}/test.txt",
+        el_all="Metanode_ELs/{meta_type}/all.txt"
+    run:
+        # split the triples into train, valid, and test with .8, .1, .1 split
+        os.makedirs(f'Metanode_ELs/{wildcards.meta_type}', exist_ok=True)
+        random.seed(42)
+        with open(output.el_all,'w') as out:
+            for line in open(input[0],'r'):
+                row = line.strip().split('\t')
+                type1 = row[0].split(':')[0]
+                type2 = row[2].split(':')[0]
+                if type1 in ['HGNC','MONDO',wildcards.meta_type] and type2 in ['HGNC','MONDO',wildcards.meta_type]:
+                    out.write(line)
+        # remove duplicates from all
+        os.system(f"cat {output.el_all} | sort | uniq > {output.el_all}.tmp")
+        os.system(f"mv {output.el_all}.tmp {output.el_all}")
+        with open(output.train,'w') as train, open(output.valid,'w') as valid, open(output.test,'w') as test:
+            for line in open(output.el_all,'r'):
+                rand = random.random()
+                if rand < .8:
+                    train.write(line)
+                elif rand < .9:
+                    valid.write(line)
+                else:
+                    test.write(line)
+
+rule make_connected_components_graph:
+    input:
+        "Monarch_KG/monarch-kg_triples.2023-12-16.tsv"
+    output:
+        train="Metanode_ELs/CC/train.txt",
+        valid="Metanode_ELs/CC/valid.txt",
+        test="Metanode_ELs/CC/test.txt",
+        el_all="Metanode_ELs/CC/all.txt"
+    params:
+        metanodes = ['HGNC','MONDO'] + meta_types
+    run:
+        # split the triples into train, valid, and test with .8, .1, .1 split
+        os.makedirs(f'Metanode_ELs/CC', exist_ok=True)
+        random.seed(42)
+        with open(output.el_all,'w') as out:
+            for line in open(input[0],'r'):
+                row = line.strip().split('\t')
+                type1 = row[0].split(':')[0]
+                type2 = row[2].split(':')[0]
+                if type1 in params.metanodes and type2 in params.metanodes:
+                    out.write(line)
+        # remove duplicates from all
+        os.system(f"cat {output.el_all} | sort | uniq > {output.el_all}.tmp")
+        os.system(f"mv {output.el_all}.tmp {output.el_all}")
+        with open(output.train,'w') as train, open(output.valid,'w') as valid, open(output.test,'w') as test:
+            for line in open(output.el_all,'r'):
+                rand = random.random()
+                if rand < .8:
+                    train.write(line)
+                elif rand < .9:
+                    valid.write(line)
+                else:
+                    test.write(line)
+        
