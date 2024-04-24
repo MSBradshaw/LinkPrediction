@@ -313,6 +313,39 @@ rule make_random_disease_list:
 
 
 
+# cancer vs random
+rule do_all:
+    input:
+        test =  'ELs_for_Rotate/Monarch_KG/test.txt',
+        train = 'ELs_for_Rotate/Monarch_KG/train.txt',
+        validation = 'ELs_for_Rotate/Monarch_KG/valid.txt'
+    output:
+        'RankResults/{PPI}/{model}/{group}_ranking_data.tsv'
+    threads: 2
+    params:
+        model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
+        terms_list = lambda wildcards: GROUPS_2_path[wildcards.group],
+        target = lambda wildcards: GROUP_2_predictor_info[wildcards.group][0],
+        relation = lambda wildcards: GROUP_2_predictor_info[wildcards.group][1],
+        train = lambda wildcards: get_el_split(wildcards.PPI,'train'),
+        validation = lambda wildcards: get_el_split(wildcards.PPI,'valid'),
+        test = lambda wildcards: get_el_split(wildcards.PPI,'test')
+    shell:
+        """
+        mkdir -p RankResults/{wildcards.PPI}/{wildcards.model}/
+        python Scripts/compare_groups_test_omatic.py \
+            --a_terms {params.terms_list} \
+            --a_label {wildcards.group} \
+            --relation {params.relation} \
+            --prediction_target {params.target} \
+            --prediction_prefix "HGNC:" \
+            --train_triples {params.train} \
+            --validation_triples {params.validation} \
+            --test_triples {params.test} \
+            --model {params.model} \
+            --output {output} \
+            --progress_bar
+        """
 
 # -------------------------------------------------------- Result Plotting --------------------------------------------------------
 
@@ -405,3 +438,6 @@ rule plot_percent_of_test_edge_at_k:
         mkdir -p PercentTestAtK
         python Scripts/plot_percent_of_test_edge_at_k.py -i RankResults/{wildcards.PPI}/{wildcards.model}/ -o {output} -t "{params.title}"
         """
+"""
+rj -n 'alt_results' -T 64 -m 200G -c "snakemake -s run_group_comparison_experiments.smk --cores 64 --rerun-incomplete"
+"""

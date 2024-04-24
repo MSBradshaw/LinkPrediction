@@ -31,9 +31,7 @@ import warnings
 def get_args():
     parser = argparse.ArgumentParser(description='Run the test-omatic experiment')
     parser.add_argument('--a_terms', type=str, required=True, help='list of terms in group A, terms must be in the training set')
-    parser.add_argument('--b_terms', type=str, required=True, help='list of terms in group B, terms must be in the training set')
     parser.add_argument('--a_label', type=str, required=True, help='label for group A')
-    parser.add_argument('--b_label', type=str, required=True, help='label for group B')
     parser.add_argument('--relation', type=str, required=True, help='relation to use for predictions')
     parser.add_argument('--prediction_target', type=str, required=True, help='"head" or "tail", which entity are you trying to predict? Edges are assumed to be directed.')
     parser.add_argument('--prediction_prefix', type=str, required=True, help='the type of entity to predict, the prefix of the entity id eg "MONDO:" "HGNC:"')
@@ -41,8 +39,10 @@ def get_args():
     parser.add_argument('--validation_triples', type=str, required=True, help='validation triple list')
     parser.add_argument('--test_triples', type=str, required=True, help='test triple list')
     parser.add_argument('--model', type=str, required=True, help='trained pykeen model in .pkl format')
-    parser.add_argument('--output_prefix', type=str, required=True, help='prefix for output files')
+    parser.add_argument('--output', type=str, required=True, help='output file, tsv')
     parser.add_argument('--progress_bar', dest='progress_bar', action='store_true',default=False, help='show progress bar')
+    # param for threads, default is 1
+    parser.add_argument('--threads', type=int, default=1, help='number of threads to use')
     args = parser.parse_args()
     return args
 
@@ -94,21 +94,19 @@ def get_scores_for_edges(terms: List[str],
     else:
         raise ValueError('prediction_target must be "head" or "tail"')
     # get the predictions for each term (hard coded as one for now)
+    scores = []
+    results = {'head_label':[],'relation_label':[],'tail_label':[],'rank':[],'head_degree':[],'tail_degree':[],'population':[],'rank_integer':[],'score':[]}
     for i,term in enumerate(terms):
+        if 'HGNC:' not in term and 'MONDO:' not in term:
+            print(f'Skipping: {term}')
+            continue
         try:
             if i % (len(terms) // 50) == 0 and progress_bar:
                 print(f'{i} / {len(terms)}')
         except ZeroDivisionError:
             pass
         try:
-            print(relation,term)
-            if 'SGD' in term or 'RGD' in term: # the SGD terms seem to break HuRI trained modesl despite them being present in all 3 splits of the data, the non huri models have no problem
-                print('skipping',term)
-                continue
-            if prediction_target == 'head':
-                predictions_df = predict.predict_target(model=model, head=None, relation=relation, tail=term, triples_factory=data).df
-            elif prediction_target == 'tail':
-                predictions_df = predict.predict_target(model=model, head=term, relation=relation, tail=None, triples_factory=data).df
+            predictions_df = predict.predict_target(model=model, head=None, relation=relation, tail=term, triples_factory=data).df
         except KeyError as e:
             print(f'KeyError: {e}')
             # raise warning with the error message
@@ -120,12 +118,11 @@ def get_scores_for_edges(terms: List[str],
         predictions_df = predictions_df[predictions_df['head_label'] != predictions_df['tail_label']]
         # sort the predictions by score
         predictions_df = predictions_df.sort_values(by=['score'],ascending=False)
+        predictions_df['rank_integer'] = list(range(1,predictions_df.shape[0]+1))
         # assign a percentile to each prediction
         predictions_df['rank'] = predictions_df['score'].rank(pct=True)
+        # assign rank as an integer to each edge
         # get the score for each edge in terms_a_test_edges
-        results = {'head_label':[],'relation_label':[],'tail_label':[],'rank':[],'head_degree':[],'tail_degree':[],'population':[]}
-        scores = []
-        
         for edge in terms_test_edges:
             if edge[1] != relation:
                 continue
@@ -145,7 +142,9 @@ def get_scores_for_edges(terms: List[str],
             results['head_degree'].append(sub['head_degree'].values[0])
             results['tail_degree'].append(sub['tail_degree'].values[0])
             results['population'].append(population)
-        results_df = pd.DataFrame(results)
+            results['rank_integer'].append(sub['rank_integer'].values[0])
+            results['score'].append(sub['score'].values[0])
+    results_df = pd.DataFrame(results)
     return scores, results_df
 
 def plot_two_groups_hists(scores_a: List[float],
@@ -182,65 +181,6 @@ def plot_two_groups_hists(scores_a: List[float],
         plt.tight_layout()
         plt.savefig('{}{}_v_{}_g2p_rankings_hist.png'.format(prefix,label_a,label_b))
         plt.show()
-
-def kruskal_test(scores_a: List[float],
-                 scores_b: List[float],
-                 label_a: str,
-                 label_b: str,
-                 prefix: str) -> (float, float):
-    """
-    Run the Kruskal-Wallis H test on the two groups of scores
-    Also save the results to a file
-    """
-    U1, p = kruskal(scores_a, scores_b)
-    print(f'Kruskal-Wallis H test p-value: {p}')
-    
-    # for scores > 0.80
-    scores_a_80 = [x for x in scores_a if x > 0.80]
-    scores_b_80 = [x for x in scores_b if x > 0.80]
-
-    U1_8, p_8 = kruskal(scores_a_80, scores_b_80)
-    print(f'Kruskal-Wallis H test p-value (percental > .8): {p}')
-
-    with open('{}{}_v_{}_g2p_rankings_hist.txt'.format(prefix,label_a,label_b),'w') as outfile:
-        outfile.write(f'Kruskal-Wallis H test p-value: {p}\n')
-        outfile.write(f'Kruskal-Wallis H test p-value (percental > .8): {p_8}\n')
-        
-    return p, p_8
-
-def compare_groups_ranking_experiment(terms_a: List[str],
-                                      terms_b: List[str],
-                                      train_triples: List[List[str]],
-                                      test_triples: List[List[str]],
-                                      validation_triples: List[List[str]],
-                                      degs: dict,
-                                      model ,
-                                      relation: str,
-                                      label_a: str,
-                                      label_b: str ,
-                                      prefix: str,
-                                      prefix_of_predicted: str,
-                                      prediction_target: str,
-                                      data: PathDataset,
-                                      progress_bar: bool = False):
-    """
-    Calculate scores for terms in groups A and B
-    Run the Kruskal-Wallis H test on the two groups of scores
-    Plot the scores for two groups as two histograms
-    Output all data to a csv file
-    Save figures
-    Report p-values
-    """ 
-    pd.options.mode.chained_assignment = None # silence the SettingWithCopyWarning
-    print('Calculating scores for group A')
-    scores_a, df_a = get_scores_for_edges(terms_a, relation, model, degs, train_triples, test_triples, validation_triples, label_a, prefix_of_predicted=prefix_of_predicted, prediction_target=prediction_target, data=data, progress_bar=progress_bar)
-    print('Calculating scores for group B')
-    scores_b, df_b = get_scores_for_edges(terms_b, relation, model, degs, train_triples, test_triples, validation_triples, label_b, prefix_of_predicted=prefix_of_predicted, prediction_target=prediction_target, data=data, progress_bar=progress_bar)
-    df = pd.concat([df_a,df_b])
-    df.to_csv('{}{}_v_{}_g2p_rankings_hist.csv'.format(prefix,label_a,label_b))
-    kruskal_test(scores_a, scores_b, label_a, label_b,prefix)
-    plot_two_groups_hists(scores_a, scores_b, label_a, label_b, prefix)
-    pd.options.mode.chained_assignment = 'warn' # turn back on the SettingWithCopyWarning
 
 def annotate(df: pd.DataFrame,
              data: PathDataset,
@@ -290,14 +230,7 @@ def make_or_load_triples(path):
     triples = set()
     for line in open(path):
         row = line.strip().split('\t')
-        try:
-            triples.add((row[0], row[1], row[2]))
-        except IndexError as e:
-            print(f'Error on line: {line}')
-            print(e)
-            exit(1)
-            
-
+        triples.add((row[0], row[1], row[2]))
     return triples
 
 def get_triples(train_path: str,validation_path: str,test_path: str) -> List[List[str]]:
@@ -325,15 +258,15 @@ def main():
     # Load the pretrained model
     model = torch.load(
         args.model,
-        map_location=torch.device("cpu"),
+        map_location=torch.device("cpu")
     )
+    torch.set_num_threads(args.threads)
 
     # load terms
     group_a_terms = read_terms_from_file(args.a_terms)
-    group_b_terms = read_terms_from_file(args.b_terms)
 
     # load network to get degrees
-    degs = load_degs(args.train_triples)
+    degs = load_degs(args.test_triples)
 
     # load triples
     train_triples, test_triples, validation_triples = get_triples(args.train_triples,args.validation_triples,args.test_triples)
@@ -354,21 +287,21 @@ def main():
             )
     data = TheKG()
 
-    compare_groups_ranking_experiment(group_a_terms,
-                                          group_b_terms,
-                                          train_triples,
-                                          test_triples,
-                                          validation_triples,
-                                          degs,
-                                          model,
-                                          args.relation,
-                                          label_a=args.a_label,
-                                          label_b=args.b_label,
-                                          prefix=args.output_prefix,
-                                          prefix_of_predicted=args.prediction_prefix,
-                                          prediction_target=args.prediction_target,
-                                          data=data,
+    scores_a, df_a = get_scores_for_edges(group_a_terms, 
+                                          args.relation, 
+                                          model, 
+                                          degs, 
+                                          train_triples, 
+                                          test_triples, 
+                                          validation_triples, 
+                                          args.a_label, 
+                                          prefix_of_predicted=args.prediction_prefix, 
+                                          prediction_target=args.prediction_target, 
+                                          data=data, 
                                           progress_bar=args.progress_bar)
+    
+    # write the results to a file
+    df_a.to_csv(args.output,sep='\t',index=False)
 
 if __name__ == '__main__':
     main()
