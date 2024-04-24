@@ -290,7 +290,14 @@ def make_or_load_triples(path):
     triples = set()
     for line in open(path):
         row = line.strip().split('\t')
-        triples.add((row[0], row[1], row[2]))
+        try:
+            triples.add((row[0], row[1], row[2]))
+        except IndexError as e:
+            print(f'Error on line: {line}')
+            print(e)
+            exit(1)
+            
+
     return triples
 
 def get_triples(train_path: str,validation_path: str,test_path: str) -> List[List[str]]:

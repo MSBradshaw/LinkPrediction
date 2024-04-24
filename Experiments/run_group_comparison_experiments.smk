@@ -106,14 +106,17 @@ def generate_plotting_data(df:pd.DataFrame, G:nx.Graph, save_dir:str=None, filte
 
     return avg_k_df, scored_df, k_df
 
+Filtered = ['normal','filtered']
 rule all:
     input:
         expand('GroupRankResults/{PPI}/{model}/AllResults/{group}.comparison_results.tsv', PPI=PPIs, model=Models, group=GROUPS),
-        expand('RankedResultsIntermediate/{PPI}/{model}/{group}/avg_hits_at_k.tsv', PPI=PPIs, model=Models, group=GROUPS),
-        expand('HitsAtKurvePlots/kurve.{PPI}.{model}.png', PPI=PPIs, model=Models),
-        'RankedResultsIntermediate/combined_avg_hits_at_k.tsv',
-        'RankedResultsIntermediate/combined_avg_hits_at_k.filtered.tsv',
-        'work_comparison/stats_about_groups_and_ppi.tsv'
+        # expand('RankedResultsIntermediate/{PPI}/{model}/{group}/avg_hits_at_k.{filtered}.tsv', PPI=PPIs, model=Models, group=GROUPS, filtered=Filtered),
+        # expand('HitsAtKurvePlots/kurve.{PPI}.{model}.{filtered}.png', PPI=PPIs, model=Models, filtered=Filtered),
+        # 'RankedResultsIntermediate/combined_avg_hits_at_k.normal.tsv',
+        # 'RankedResultsIntermediate/combined_avg_hits_at_k.filtered.tsv',
+        # 'work_comparison/stats_about_groups_and_ppi.tsv',
+        expand('GroupRankResultsHistograms/{PPI}.{model}.hist.png', PPI=PPIs, model=Models),
+        expand('PercentTestAtK/{PPI}.{model}.percent_of_test_edges_at_k.png', PPI=PPIs, model=Models)
 
 def load_ancestry_hpo_file(_f):
     _hpos = []
@@ -339,16 +342,19 @@ rule make_random_disease_list:
     output:
         'work_comparison/random_300_diseases.txt'
     run:
-        # Random genes
+        # Random diseases from all diseases with gene connections
         diseases = []
-        with open('Resources/monarch-kg_nodes.sep_22.tsv','r') as f:
-            for line in f:
-                line = line.strip().split('\t')
-                if 'MONDO' in line[0]: 
-                    diseases.append(line[0])
-                if 'MONDO' in line[2]: 
-                    diseases.append(line[2])
+        for x in ['train','valid','test']:
+            with open(f'ELs_for_Rotate/Monarch_KG/{x}.txt','r') as f:
+                for line in f:
+                    if 'MONDO:' in line and 'HGNC:' in line:
+                        line = line.strip().split('\t')
+                        if 'MONDO' in line[0]: 
+                            diseases.append(line[0])
+                        if 'MONDO' in line[2]: 
+                            diseases.append(line[2])
         diseases = list(set(diseases))
+        print(len(diseases))
         diseases.sort()
         # choose 500 genes at random from genes
         random.seed(42)
@@ -628,7 +634,7 @@ rule ultra_rare_disease_rank_results:
         mkdir -p GroupRankResults/{wildcards.PPI}/{wildcards.model}/AllResults/
         python Scripts/generate_ranked_results.py \
                 --terms {input} \
-                --label Rare_Diseases \
+                --label Ultra_Rare_Diseases \
                 --relation "biolink:causes" \
                 --prediction_target head \
                 --prediction_prefix "HGNC:" \
@@ -684,9 +690,9 @@ rule generate_hits_at_k_plotting_data:
     input:
         'GroupRankResults/{PPI}/{model}/AllResults/{group}.comparison_results.tsv'
     output:
-        avg_hits_at_k = 'RankedResultsIntermediate/{PPI}/{model}/{group}/avg_hits_at_k.tsv',
-        edges_scored_by_query_term = 'RankedResultsIntermediate/{PPI}/{model}/{group}/edges_scored_by_query_term.tsv',
-        all_hits_at_k = 'RankedResultsIntermediate/{PPI}/{model}/{group}/all_hits_at_k.tsv',
+        avg_hits_at_k = 'RankedResultsIntermediate/{PPI}/{model}/{group}/avg_hits_at_k.normal.tsv',
+        edges_scored_by_query_term = 'RankedResultsIntermediate/{PPI}/{model}/{group}/edges_scored_by_query_term.normal.tsv',
+        all_hits_at_k = 'RankedResultsIntermediate/{PPI}/{model}/{group}/all_hits_at_k.normal.tsv',
         f_avg_hits_at_k = 'RankedResultsIntermediate/{PPI}/{model}/{group}/avg_hits_at_k.filtered.tsv',
         f_edges_scored_by_query_term = 'RankedResultsIntermediate/{PPI}/{model}/{group}/edges_scored_by_query_term.filtered.tsv',
         f_all_hits_at_k = 'RankedResultsIntermediate/{PPI}/{model}/{group}/all_hits_at_k.filtered.tsv'
@@ -709,9 +715,9 @@ rule generate_hits_at_k_plotting_data:
 
 rule plot_hits_at_kurve:
     input:
-        avg_hits_at_k = expand('RankedResultsIntermediate/{PPI}/{model}/{group}/avg_hits_at_k{filtered}.tsv', PPI='{PPI}', model='{model}', group=GROUPS, filtered=['', '.filtered']),
+        avg_hits_at_k = expand('RankedResultsIntermediate/{PPI}/{model}/{group}/avg_hits_at_k.{filtered}.tsv', PPI='{PPI}', model='{model}', group=GROUPS, filtered=Filtered),
     output:
-        'HitsAtKurvePlots/kurve.{PPI}.{model}{filtered}.png'
+        'HitsAtKurvePlots/kurve.{PPI}.{model}.{filtered}.png'
     params:
         ppi_name = None
     shell:
@@ -724,9 +730,9 @@ rule plot_hits_at_kurve:
 
 rule annotate_hits_at_kurve:
     input:
-        avg_hits_at_k = 'RankedResultsIntermediate/{PPI}/{model}/{group}/avg_hits_at_k{filtered}.tsv'
+        avg_hits_at_k = 'RankedResultsIntermediate/{PPI}/{model}/{group}/avg_hits_at_k.{filtered}.tsv'
     output:
-        'RankedResultsIntermediate/{PPI}/{model}/{group}/avg_hits_at_k.annotated{filtered}.tsv'
+        'RankedResultsIntermediate/{PPI}/{model}/{group}/avg_hits_at_k.annotated.{filtered}.tsv'
     run:
         df = pd.read_csv(input[0], sep='\t')
         df['group'] = wildcards.group
@@ -736,33 +742,40 @@ rule annotate_hits_at_kurve:
 
 rule combine_hits_at_kurve:
     input:
-        expand('RankedResultsIntermediate/{PPI}/{model}/{group}/avg_hits_at_k.annotated{filtered}.tsv', PPI=PPIs, model=Models, group=GROUPS, filtered='{filtered}')
+        expand('RankedResultsIntermediate/{PPI}/{model}/{group}/avg_hits_at_k.annotated.{filtered}.tsv', PPI=PPIs, model=Models, group=GROUPS, filtered='{filtered}')
     output:
-        'RankedResultsIntermediate/combined_avg_hits_at_k{filtered}.tsv'
+        'RankedResultsIntermediate/combined_avg_hits_at_k.{filtered}.tsv'
     run:
         df = pd.concat([pd.read_csv(f, sep='\t') for f in input])
         df.to_csv(output[0], sep='\t', index=False)
 
-rule combine_edges_scored_by_query_term:
-    input:
-        expand('RankedResultsIntermediate/{PPI}/{model}/{group}/edges_scored_by_query_term.tsv', PPI=PPIs, model=Models, group=GROUPS)
-    output:
-        'RankedResultsIntermediate/combined_edges_scored_by_query_term.tsv'
-    run:
-        combined_df = None
-        for f in input:
-            df = pd.read_csv(f, sep='\t')
-            df['model'] = f.split('/')[2]
-            df['ppi'] = f.split('/')[1]
-            df['group'] = f.split('/')[3]
-            if combined_df == None:
-                combined_df = df
-            else:
-                combined_df = pd.concat([combined_df, df])
-        combined_df.to_csv(output[0], sep='\t', index=False)
+# rule combine_edges_scored_by_query_term:
+#     input:
+#         expand('RankedResultsIntermediate/{PPI}/{model}/{group}/edges_scored_by_query_term.{filtered}.tsv', PPI=PPIs, model=Models, group=GROUPS, filtered='{filtered}')
+#     output:
+#         'RankedResultsIntermediate/combined_edges_scored_by_query_term.{filtered}.tsv'
+#     run:
+#         combined_df = None
+#         for f in input:
+#             df = pd.read_csv(f, sep='\t')
+#             df['model'] = f.split('/')[2]
+#             df['ppi'] = f.split('/')[1]
+#             df['group'] = f.split('/')[3]
+#             if combined_df == None:
+#                 combined_df = df
+#             else:
+#                 combined_df = pd.concat([combined_df, df])
+#         combined_df.to_csv(output[0], sep='\t', index=False)
 
 
-            
+def count_group_occurances(group_terms,ppi_edge_list):
+    count = 0
+    group_set = set(group_terms)
+    for line in open(ppi_edge_list,'r'):
+        line = line.strip().split('\t')
+        if line[0] in group_set or line[2] in group_set:
+            count += 1
+    return count
 
 rule generate_stats_about_groups_and_ppi:
     input:
@@ -799,7 +812,7 @@ rule generate_stats_about_groups_and_ppi:
         }
         # for each input keep only the HGNC and MONDO terms in them
         groups = {}
-        for input_file in inputs:
+        for input_file in input:
             groups[input_file] = []
             for line in open(input_file,'r'):
                 if 'HGNC' in line or 'MONDO' in line:
@@ -809,11 +822,34 @@ rule generate_stats_about_groups_and_ppi:
             print(group)
             for ppi in params.ppis:
                 data['group'].append(groups2names[group])
-                data['KG'].append(groups2names[ppi])
+                data['KG'].append(ppi)
                 data['train'].append(count_group_occurances(groups[group],get_train(ppi)))
                 data['valid'].append(count_group_occurances(groups[group],get_valid(ppi)))
                 data['test'].append(count_group_occurances(groups[group],get_test(ppi)))
                 data['total'].append(data['train'][-1]+data['valid'][-1]+data['test'][-1])
         df = pd.DataFrame(data)
         df.to_csv(output[0],sep='\t',index=False)
-            
+
+rule plot_hist_by_model_and_kg:
+    input: 
+        expand('GroupRankResults/{PPI}/{model}/AllResults/{group}.comparison_results.tsv', PPI='{PPI}', model='{model}', group=GROUPS),
+    output:
+        'GroupRankResultsHistograms/{PPI}.{model}.hist.png'
+    shell:
+        """
+        python Scripts/plot_hist_within_model_ppi.py -i GroupRankResults/{wildcards.PPI}/{wildcards.model}/AllResults/ -o {output}
+        """
+
+# plot_percent_of_test_edge_at_k.py
+
+rule plot_percent_of_test_edge_at_k:
+    input:
+        expand('GroupRankResults/{PPI}/{model}/AllResults/{group}.comparison_results.tsv', PPI='{PPI}', model='{model}', group=GROUPS),
+    output:
+        'PercentTestAtK/{PPI}.{model}.percent_of_test_edges_at_k.png'
+    threads: 12
+    shell:
+        """
+        mkdir -p PercentTestAtK
+        python Scripts/plot_percent_of_test_edge_at_k.py -i GroupRankResults/{wildcards.PPI}/{wildcards.model}/AllResults/ -o {output} -t "{wildcards.PPI} {wildcards.model}"
+        """
