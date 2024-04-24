@@ -4,8 +4,6 @@ import random
 import sys
 
 POPs = ['nfe_onf','afr','amr','eas']
-
-# PPIs = ['original_monarch','HuRI']
 PPIs = ['original_monarch','HuRI','monarch_filtered','string_filtered_t25','string_filtered_t50','string_filtered_t100','HuRI_filtered']
 
 PPIs2ELDirName = {'original_monarch':'Monarch_KG',
@@ -53,8 +51,6 @@ GROUP_2_predictor_info = {'Cancer':['tail','biolink:interacts_with'],
                         'UltraRareDisease':['head','biolink:causes'],
                         'RareDisease':['head','biolink:causes'],
                         'RandomDiseases':['head','biolink:causes']}
-
-Filtered = ['normal','filtered']
 
 rule all:
     input:
@@ -311,6 +307,9 @@ rule make_random_disease_list:
 # ----------------------------------------- Generate Ranking Results -----------------------------------------
 
 
+def get_el_split(ppi,split):
+    assert split in ['train','valid','test']
+    return 'ELs_for_Rotate/{}/{}.txt'.format(PPIs2ELDirName[ppi],split)
 
 
 # cancer vs random
@@ -410,8 +409,6 @@ rule generate_stats_about_groups_and_ppi:
                 data['total'].append(data['train'][-1]+data['valid'][-1]+data['test'][-1])
         df = pd.DataFrame(data)
         df.to_csv(output[0],sep='\t',index=False)
-
-
 
 rule plot_hist_by_model_and_kg:
     input: 
