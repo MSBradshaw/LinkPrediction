@@ -6,14 +6,21 @@ def get_args():
     # input dir, title, outfile
     parser = argparse.ArgumentParser(description='Plot hits at k curve')
     parser.add_argument('--ppi_model_dir', type=str, help='Directory containing the ppi model results')
+    # flag for the filtered param
+    parser.add_argument('--filtered', action='store_true', help='Use the filtered results')
     parser.add_argument('--title', type=str, help='Title of the plot')
     parser.add_argument('--outfile', type=str, help='Output file')
     return parser.parse_args()
 
-def plot_kurve(ppi_model_dir:str,title:str,outfile:str):
+def plot_kurve(ppi_model_dir:str,title:str,outfile:str,filtered:bool):
     if ppi_model_dir[-1] != '/':
         ppi_model_dir += '/'
     
+    if filtered:
+        extra_suffix = 'filtered'
+    else:
+        extra_suffix = 'normal'
+
     dirs2color = {'Female':'#b66dff','Male':'#006ddb','Cancer':'#920000','PedCancer':'#ff6db6','RareDisease':'#004949', 'UltraRareDisease':'#009999','African':'#db6d00','EastAsian':'#22cf22','European':'#8f4e00','Latino':'#490092','Random':'#676767','RandomDiseases':'#e6e6e6'}
     dirs = ['Female','Male','Cancer','PedCancer','RareDisease', 'UltraRareDisease','African','EastAsian','European','Latino','Random','RandomDiseases']
     dirs_names = ['Female','Male','Cancer','Pediatric Cancer','Rare Disease', 'Ultra Rare Disease','African','East Asian','European','Latino','Random Genes','Random Diseases']
@@ -25,7 +32,7 @@ def plot_kurve(ppi_model_dir:str,title:str,outfile:str):
     fig, axes = plt.subplots(2,2,figsize=(10,10), gridspec_kw={'width_ratios': [3, 1]})
     for i,d in enumerate(dirs):
         try:
-            df = pd.read_csv(ppi_model_dir + d + '/avg_hits_at_k.tsv',sep='\t')
+            df = pd.read_csv(ppi_model_dir + d + f'/avg_hits_at_k.{extra_suffix}.tsv',sep='\t')
         except FileNotFoundError:
             print(f'No file found for {d}')
             continue
@@ -63,4 +70,4 @@ def plot_kurve(ppi_model_dir:str,title:str,outfile:str):
 
 if __name__ == '__main__':
     args = get_args()
-    plot_kurve(args.ppi_model_dir,args.title,args.outfile)
+    plot_kurve(args.ppi_model_dir,args.title,args.outfile,args.filtered)

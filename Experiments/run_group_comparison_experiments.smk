@@ -2,120 +2,64 @@ import pandas as pd
 import networkx as nx
 import random
 import sys
-import matplotlib.pyplot as plt
-sys.path.append('Scripts/')
-from compare_groups_test_omatic import plot_two_groups_hists, kruskal_test
 
 POPs = ['nfe_onf','afr','amr','eas']
 
-# '00', '01' ... '99'
-SEX_SHARDS = [ '0'+str(i) if i < 10 else str(i) for i in range(0,100)]
+# PPIs = ['original_monarch','HuRI']
+PPIs = ['original_monarch','HuRI','monarch_filtered','string_filtered_t25','string_filtered_t50','string_filtered_t100','HuRI_filtered']
 
-ppi_names = {'original_monarch':'Monarch',
-            'HuRI':'HuRI',
-            'HuRI_filtered':'Filtered HuRI',
-            'monarch_filtered':'Filtered Monarch',
-            'string_filtered_t25':'Filtered STRING top 25%',
-            'string_filtered_t50':'Filtered STRING top 50%',
-            'string_filtered_t100':'Filtered STRING top 100%',
-            'string_t25':'STRING top 25%',
-            'string_t50':'STRING top 50%',
-            'string_t100':'STRING top 100%'}
+PPIs2ELDirName = {'original_monarch':'Monarch_KG',
+                    'HuRI':'Monarch_HuRI',
+                    'HuRI_filtered':'Monarch_HuRI_Filtered',
+                    'monarch_filtered':'Monarch_KG_Filtered',
+                    'string_filtered_t25':'Monarch_STRING_Filtered_t25_new',
+                    'string_filtered_t50':'Monarch_STRING_Filtered_t50_new',
+                    'string_filtered_t100':'Monarch_STRING_Filtered_t100_new'}
 
-# PPIs = ['original_monarch','HuRI','HuRI_filtered','monarch_filtered','string_filtered_t25', 'string_filtered_t50','string_filtered_t100', 'string_t25', 'string_t50', 'string_t100'] # all
-PPIs = ['original_monarch','HuRI','HuRI_filtered','monarch_filtered','string_filtered_t25', 'string_filtered_t50','string_filtered_t100'] # all but t25 because rotate t25 is not ready yet
-PPIs = ['original_monarch','HuRI_filtered','monarch_filtered','string_filtered_t25', 'string_filtered_t50','string_filtered_t100'] # all but t25 because rotate t25 is not ready yet
+PPIs2pretty = {'original_monarch':'Monarch',
+                    'HuRI':'HuRI',
+                    'HuRI_filtered':'HuRI Filtered',
+                    'monarch_filtered':'Monarch Filtered',
+                    'string_filtered_t25':'String Filtered 25',
+                    'string_filtered_t50':'String Filtered 50',
+                    'string_filtered_t100':'String Filtered 100'}
+
 Models = ['TransE','RotatE','ComplEx']
-# Models = ['TransE','RotatE'] # no comple because I dont have/wont ever have string results for it
-GROUPS = ['Cancer', 'PedCancer', 'European', 'EastAsian', 'Latino', 'African', 'Female', 'Male', 'Random','UltraRareDisease','RareDisease','RandomDiseases']
 
-def generate_plotting_data(df:pd.DataFrame, G:nx.Graph, save_dir:str=None, filter_on_query_test_prescense=True) -> pd.DataFrame:
-    # remove rows that were in the training set
-    df['in_train'] = df.apply(lambda x: (x['head_label'], x['tail_label']) in G.edges, axis=1)
-    df = df[~df['in_train']]
-    # remove self edges
-    df = df[df['head_label'] != df['tail_label']]
-    # remove duplicate rows
-    df = df.drop_duplicates(subset=['head_label', 'tail_label'])
-    # sort by score in descending order
-    df = df.sort_values(by='score', ascending=False)
-    df['rank'] = df['score'].rank(pct=True)
+GROUPS = ['Cancer', 'PedCancer', 'European', 'EastAsian', 'Latino', 'African', 'Female', 'Male', 'RandomGenes','UltraRareDisease','RareDisease','RandomDiseases']
+GROUPS_2_path = {'Cancer':'work_comparison/cancer_genes.txt', 
+                'PedCancer':'work_comparison/pediatric_cancer_genes.txt', 
+                'European':'work_comparison/mondo_terms.nfe_onf.txt', 
+                'EastAsian':'work_comparison/mondo_terms.eas.txt', 
+                'Latino':'work_comparison/mondo_terms.amr.txt', 
+                'African':'work_comparison/mondo_terms.afr.txt', 
+                'Female':'work_comparison/female_differentially_expressed_genes.txt', 
+                'Male':'work_comparison/male_differentially_expressed_genes.txt', 
+                'RandomGenes':'work_comparison/random_500_genes.txt',
+                'UltraRareDisease':'OrphanetEpidemiology/300_mondo_ids.txt',
+                'RareDisease':'OrphanetEpidemiology/290_non_ultra_rare.mondo_ids.tsv',
+                'RandomDiseases':'work_comparison/random_300_diseases.txt'}
 
-    # find query terms that have atleast 1 test sest edge
-    queries_to_keep = []
-    for q in df['query_term'].unique():
-        # where query term is q and in_test_set is True
-        test_set_edges = df[(df['query_term'] == q) & (df['in_test_set'] == True)]
-        if len(test_set_edges) > 0:
-            queries_to_keep.append(q)
-    print(queries_to_keep)
-
-    queries_to_process = None
-
-    if filter_on_query_test_prescense:
-        if len(queries_to_keep) == 0:
-            # return empty dataframes
-            # throw an error and message
-            # print('No query terms have test set edges')
-            exit(1, 'No query terms have test set edges')
-        queries_to_process = queries_to_keep
-    else:
-        queries_to_process = df['query_term'].unique()
-
-
-
-    k_df = None # will contain all the hits at K data
-    scored_df = None # will contain the data with ranks assigned by query term instead of globally
-    for q in queries_to_process:
-        sub = df[df['query_term'] == q]
-        # sort by score in descending order
-        df = df.sort_values(by='score', ascending=False)
-        df['rank'] = df['score'].rank(pct=True)
-            # create a dataframe that is K, hits@K, percent hits@K
-        k_values = [1,5,10,15,25] + list(range(50, 501, 50))
-        hits_at_k = []
-        percent_hits_at_k = []
-        for k in k_values:
-            hits_at_k.append(sub.head(k)['in_test_set'].sum())
-            percent_hits_at_k.append(sub.head(k)['in_test_set'].sum() / k)
-        sub_k_df = pd.DataFrame({'k': k_values, 'hits@k': hits_at_k, 'percent_hits@k': percent_hits_at_k})
-        sub_k_df['query_term'] = q
-        if k_df is None:
-            k_df = sub_k_df
-        else:
-            k_df = pd.concat([k_df, sub_k_df])
-        if scored_df is None:
-            scored_df = sub
-        else:
-            scored_df = pd.concat([scored_df, sub])
-    
-    print(k_df.head())
-    print(k_df.shape)
-    # create an average hits@k for each k
-    # get k_df without the query term column
-    k_df_no_q = k_df.drop(columns=['query_term'])
-    avg_k_df = k_df_no_q.groupby('k').mean().reset_index()
-
-    if save_dir:
-        if save_dir[-1] != '/':
-            save_dir += '/'
-        os.makedirs(save_dir, exist_ok=True)
-        avg_k_df.to_csv(save_dir + 'avg_hits_at_k.tsv', index=False, sep='\t')
-        scored_df.to_csv(save_dir + 'edges_scored_by_query_term.tsv', index=False, sep='\t')
-        k_df.to_csv(save_dir + 'all_hits_at_k.tsv', index=False, sep='\t')
-
-    return avg_k_df, scored_df, k_df
+# diseases predict head, genes predict tail
+GROUP_2_predictor_info = {'Cancer':['tail','biolink:interacts_with'], 
+                        'PedCancer':['tail','biolink:interacts_with'], 
+                        'European':['head','biolink:causes'], 
+                        'EastAsian':['head','biolink:causes'], 
+                        'Latino':['head','biolink:causes'], 
+                        'African':['head','biolink:causes'], 
+                        'Female':['tail','biolink:interacts_with'], 
+                        'Male':['tail','biolink:interacts_with'], 
+                        'RandomGenes':['tail','biolink:interacts_with'],
+                        'UltraRareDisease':['head','biolink:causes'],
+                        'RareDisease':['head','biolink:causes'],
+                        'RandomDiseases':['head','biolink:causes']}
 
 Filtered = ['normal','filtered']
+
 rule all:
     input:
-        expand('GroupRankResults/{PPI}/{model}/AllResults/{group}.comparison_results.tsv', PPI=PPIs, model=Models, group=GROUPS),
-        # expand('RankedResultsIntermediate/{PPI}/{model}/{group}/avg_hits_at_k.{filtered}.tsv', PPI=PPIs, model=Models, group=GROUPS, filtered=Filtered),
-        # expand('HitsAtKurvePlots/kurve.{PPI}.{model}.{filtered}.png', PPI=PPIs, model=Models, filtered=Filtered),
-        # 'RankedResultsIntermediate/combined_avg_hits_at_k.normal.tsv',
-        # 'RankedResultsIntermediate/combined_avg_hits_at_k.filtered.tsv',
-        # 'work_comparison/stats_about_groups_and_ppi.tsv',
-        expand('GroupRankResultsHistograms/{PPI}.{model}.hist.png', PPI=PPIs, model=Models),
+        expand('RankResults/{PPI}/{model}/{group}_ranking_data.tsv', PPI=PPIs, model=Models, group=GROUPS),
+        expand('RankResultsHistograms/{PPI}.{model}.hist.png', PPI=PPIs, model=Models),
         expand('PercentTestAtK/{PPI}.{model}.percent_of_test_edges_at_k.png', PPI=PPIs, model=Models)
 
 def load_ancestry_hpo_file(_f):
@@ -366,407 +310,11 @@ rule make_random_disease_list:
 
 # ----------------------------------------- Generate Ranking Results -----------------------------------------
 
-rule cancer_rank_results:
-    input:
-        terms = 'work_comparison/cancer_genes.txt'
-    output:
-        'GroupRankResults/{PPI}/{model}/AllResults/Cancer.comparison_results.tsv'
-    threads: 1
-    params:
-        model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
-        train = lambda wildcards: get_train(wildcards.PPI),
-        valid = lambda wildcards: get_valid(wildcards.PPI),
-        test = lambda wildcards: get_test(wildcards.PPI)
-    shell:
-        """
-        mkdir -p GroupRankResults/{wildcards.PPI}/{wildcards.model}/Cancer/
-        python Scripts/generate_ranked_results.py \
-                --terms {input.terms} \
-                --label Cancer \
-                --relation "biolink:interacts_with" \
-                --prediction_target head \
-                --prediction_prefix "HGNC:" \
-                --train_triples {params.train} \
-                --validation_triples {params.valid} \
-                --test_triples {params.test} \
-                --model {params.model} \
-                --output {output} \
-                --progress_bar
-        """
 
-rule random_rank_results:
-    input:
-        terms = 'work_comparison/random_500_genes.txt'
-    output:
-        'GroupRankResults/{PPI}/{model}/AllResults/Random.comparison_results.tsv'
-    threads: 1
-    params:
-        model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
-        train = lambda wildcards: get_train(wildcards.PPI),
-        valid = lambda wildcards: get_valid(wildcards.PPI),
-        test = lambda wildcards: get_test(wildcards.PPI)
-    shell:
-        """
-        mkdir -p GroupRankResults/{wildcards.PPI}/{wildcards.model}/Random/
-        python Scripts/generate_ranked_results.py \
-                --terms {input.terms} \
-                --label Random_500_42 \
-                --relation "biolink:interacts_with" \
-                --prediction_target head \
-                --prediction_prefix "HGNC:" \
-                --train_triples {params.train} \
-                --validation_triples {params.valid} \
-                --test_triples {params.test} \
-                --model {params.model} \
-                --output {output} \
-                --progress_bar
-        """
 
-rule random_disease_rank_results:
-    input:
-        terms = 'work_comparison/random_300_diseases.txt'
-    output:
-        'GroupRankResults/{PPI}/{model}/AllResults/RandomDiseases.comparison_results.tsv'
-    threads: 1
-    params:
-        model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
-        train = lambda wildcards: get_train(wildcards.PPI),
-        valid = lambda wildcards: get_valid(wildcards.PPI),
-        test = lambda wildcards: get_test(wildcards.PPI)
-    shell:
-        """
-        mkdir -p GroupRankResults/{wildcards.PPI}/{wildcards.model}/Random/
-        python Scripts/generate_ranked_results.py \
-                --terms {input.terms} \
-                --label Random_Diseases_500_42 \
-                --relation "biolink:interacts_with" \
-                --prediction_target head \
-                --prediction_prefix "HGNC:" \
-                --train_triples {params.train} \
-                --validation_triples {params.valid} \
-                --test_triples {params.test} \
-                --model {params.model} \
-                --output {output} \
-                --progress_bar
-        """
 
-rule pediatric_cancer_rank_results:
-    input:
-        terms = 'work_comparison/pediatric_cancer_genes.txt'
-    output:
-        'GroupRankResults/{PPI}/{model}/AllResults/PedCancer.comparison_results.tsv'
-    threads: 1
-    params:
-        model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
-        train = lambda wildcards: get_train(wildcards.PPI),
-        valid = lambda wildcards: get_valid(wildcards.PPI),
-        test = lambda wildcards: get_test(wildcards.PPI)
-    shell:
-        """
-        mkdir -p GroupRankResults/{wildcards.PPI}/{wildcards.model}/PediatricCancer/
-        python Scripts/generate_ranked_results.py \
-                --terms {input.terms} \
-                --label Pediatric_Cancer \
-                --relation "biolink:interacts_with" \
-                --prediction_target head \
-                --prediction_prefix "HGNC:" \
-                --train_triples {params.train} \
-                --validation_triples {params.valid} \
-                --test_triples {params.test} \
-                --model {params.model} \
-                --output {output} \
-                --progress_bar
-        """
 
-rule female_sex_differentially_expressed_ranked_results:
-    input:
-        female='work_comparison/female_differentially_expressed_genes.txt'
-    output:
-        female='GroupRankResults/{PPI}/{model}/AllResults/Female.comparison_results.tsv'
-    threads: 1
-    params:
-        model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
-        train = lambda wildcards: get_train(wildcards.PPI),
-        valid = lambda wildcards: get_valid(wildcards.PPI),
-        test = lambda wildcards: get_test(wildcards.PPI)
-    shell:
-        """
-        mkdir -p GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/SexDiffExpShards/
-        # remove non human terms if they made it in somehow
-        grep "HGNC:" {input.female} > {input.female}.filtered
-
-        python Scripts/generate_ranked_results.py \
-                --terms {input.female} \
-                --label Female \
-                --relation "biolink:interacts_with" \
-                --prediction_target head \
-                --prediction_prefix "HGNC:" \
-                --train_triples {params.train} \
-                --validation_triples {params.valid} \
-                --test_triples {params.test} \
-                --model {params.model} \
-                --output {output.female} \
-                --progress_bar
-        """
-
-rule male_sex_differentially_expressed_ranked_results:
-    input:
-        male='work_comparison/male_differentially_expressed_genes.txt'
-    output:
-        male='GroupRankResults/{PPI}/{model}/AllResults/Male.comparison_results.tsv'
-    threads: 1
-    params:
-        model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
-        train = lambda wildcards: get_train(wildcards.PPI),
-        valid = lambda wildcards: get_valid(wildcards.PPI),
-        test = lambda wildcards: get_test(wildcards.PPI)
-    shell:
-        """
-        mkdir -p GroupComparisonResults/{wildcards.PPI}/{wildcards.model}/SexDiffExpShards/
-        # remove non human terms if they made it in somehow
-        grep "HGNC:" {input.male} > {input.male}.filtered
-
-        python Scripts/generate_ranked_results.py \
-                --terms {input.male} \
-                --label Male \
-                --relation "biolink:interacts_with" \
-                --prediction_target head \
-                --prediction_prefix "HGNC:" \
-                --train_triples {params.train} \
-                --validation_triples {params.valid} \
-                --test_triples {params.test} \
-                --model {params.model} \
-                --output {output.male} \
-                --progress_bar
-        """
-
-                
-rule asvd_ranked_results:
-    input:
-        euro = 'work_comparison/mondo_terms.nfe_onf.txt',
-        african = 'work_comparison/mondo_terms.afr.txt',
-        latino = 'work_comparison/mondo_terms.amr.txt',
-        east_asian = 'work_comparison/mondo_terms.eas.txt'
-    output:
-        euro='GroupRankResults/{PPI}/{model}/AllResults/European.comparison_results.tsv',
-        african='GroupRankResults/{PPI}/{model}/AllResults/African.comparison_results.tsv',
-        latino='GroupRankResults/{PPI}/{model}/AllResults/Latino.comparison_results.tsv',
-        east_asian='GroupRankResults/{PPI}/{model}/AllResults/EastAsian.comparison_results.tsv'
-    threads: 1
-    params:
-        model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
-        train = lambda wildcards: get_train(wildcards.PPI),
-        valid = lambda wildcards: get_valid(wildcards.PPI),
-        test = lambda wildcards: get_test(wildcards.PPI)        
-    shell:
-        """
-        mkdir -p GroupRankResults/{wildcards.PPI}/{wildcards.model}/AllResults/
-        # EURO
-        python Scripts/generate_ranked_results.py \
-                --terms {input.euro} \
-                --label European \
-                --relation "biolink:causes" \
-                --prediction_target head \
-                --prediction_prefix "HGNC:" \
-                --train_triples {params.train} \
-                --validation_triples {params.valid} \
-                --test_triples {params.test} \
-                --model {params.model} \
-                --output {output.euro} \
-                --progress_bar
-        
-        # AFRICAN
-        python Scripts/generate_ranked_results.py \
-                --terms {input.african} \
-                --label African \
-                --relation "biolink:causes" \
-                --prediction_target head \
-                --prediction_prefix "HGNC:" \
-                --train_triples {params.train} \
-                --validation_triples {params.valid} \
-                --test_triples {params.test} \
-                --model {params.model} \
-                --output {output.african} \
-                --progress_bar
-        
-        # LATINO
-        python Scripts/generate_ranked_results.py \
-                --terms {input.latino} \
-                --label Latino \
-                --relation "biolink:causes" \
-                --prediction_target head \
-                --prediction_prefix "HGNC:" \
-                --train_triples {params.train} \
-                --validation_triples {params.valid} \
-                --test_triples {params.test} \
-                --model {params.model} \
-                --output {output.latino} \
-                --progress_bar
-        
-        # EAST ASIAN
-        python Scripts/generate_ranked_results.py \
-                --terms {input.east_asian} \
-                --label East_Asian \
-                --relation "biolink:causes" \
-                --prediction_target head \
-                --prediction_prefix "HGNC:" \
-                --train_triples {params.train} \
-                --validation_triples {params.valid} \
-                --test_triples {params.test} \
-                --model {params.model} \
-                --output {output.east_asian} \
-                --progress_bar
-        """
-
-rule ultra_rare_disease_rank_results:
-    input:
-        'OrphanetEpidemiology/300_mondo_ids.txt'
-    output:
-        'GroupRankResults/{PPI}/{model}/AllResults/UltraRareDisease.comparison_results.tsv'
-    threads: 1
-    params:
-        model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
-        train = lambda wildcards: get_train(wildcards.PPI),
-        valid = lambda wildcards: get_valid(wildcards.PPI),
-        test = lambda wildcards: get_test(wildcards.PPI)
-    shell:
-        """
-        mkdir -p GroupRankResults/{wildcards.PPI}/{wildcards.model}/AllResults/
-        python Scripts/generate_ranked_results.py \
-                --terms {input} \
-                --label Ultra_Rare_Diseases \
-                --relation "biolink:causes" \
-                --prediction_target head \
-                --prediction_prefix "HGNC:" \
-                --train_triples {params.train} \
-                --validation_triples {params.valid} \
-                --test_triples {params.test} \
-                --model {params.model} \
-                --output {output} \
-                --progress_bar
-        """
-
-rule rare_disease_rank_results:
-    input:
-        'OrphanetEpidemiology/290_non_ultra_rare.mondo_ids.tsv'
-    output:
-        'GroupRankResults/{PPI}/{model}/AllResults/RareDisease.comparison_results.tsv'
-    threads: 1
-    params:
-        model = lambda wildcards: get_model(wildcards.PPI, wildcards.model),
-        train = lambda wildcards: get_train(wildcards.PPI),
-        valid = lambda wildcards: get_valid(wildcards.PPI),
-        test = lambda wildcards: get_test(wildcards.PPI)
-    shell:
-        """
-        mkdir -p GroupRankResults/{wildcards.PPI}/{wildcards.model}/AllResults/
-        python Scripts/generate_ranked_results.py \
-                --terms {input} \
-                --label Rare_Diseases \
-                --relation "biolink:causes" \
-                --prediction_target head \
-                --prediction_prefix "HGNC:" \
-                --train_triples {params.train} \
-                --validation_triples {params.valid} \
-                --test_triples {params.test} \
-                --model {params.model} \
-                --output {output} \
-                --progress_bar
-        """
-
-def get_el_as_G(ppi):
-    train_path = get_train(ppi)
-    valid_path = get_valid(ppi)
-    el_df = pd.read_csv(train_path, sep='\t', header=None)
-    el_df_valid = pd.read_csv(valid_path, sep='\t', header=None)
-    el_df.columns = ['subject', 'predicate', 'object']
-    el_df_valid.columns = ['subject', 'predicate', 'object']
-    el_df = pd.concat([el_df, el_df_valid])
-
-    G = nx.from_pandas_edgelist(el_df, 'subject', 'object', 'predicate')
-    return G
-
-rule generate_hits_at_k_plotting_data:
-    input:
-        'GroupRankResults/{PPI}/{model}/AllResults/{group}.comparison_results.tsv'
-    output:
-        avg_hits_at_k = 'RankedResultsIntermediate/{PPI}/{model}/{group}/avg_hits_at_k.normal.tsv',
-        edges_scored_by_query_term = 'RankedResultsIntermediate/{PPI}/{model}/{group}/edges_scored_by_query_term.normal.tsv',
-        all_hits_at_k = 'RankedResultsIntermediate/{PPI}/{model}/{group}/all_hits_at_k.normal.tsv',
-        f_avg_hits_at_k = 'RankedResultsIntermediate/{PPI}/{model}/{group}/avg_hits_at_k.filtered.tsv',
-        f_edges_scored_by_query_term = 'RankedResultsIntermediate/{PPI}/{model}/{group}/edges_scored_by_query_term.filtered.tsv',
-        f_all_hits_at_k = 'RankedResultsIntermediate/{PPI}/{model}/{group}/all_hits_at_k.filtered.tsv'
-    params:
-        train = lambda wildcards: get_train(wildcards.PPI),
-        valid = lambda wildcards: get_valid(wildcards.PPI)
-    shell:
-        """
-        python Scripts/generate_kurve_plotting_data.py --train_path {params.train} \
-                                                    --valid_path {params.valid} \
-                                                    --save_dir RankedResultsIntermediate/{wildcards.PPI}/{wildcards.model}/{wildcards.group}/ \
-                                                    --df_path {input} \
-                                                    --filter
-
-        python Scripts/generate_kurve_plotting_data.py --train_path {params.train} \
-                                                    --valid_path {params.valid} \
-                                                    --save_dir RankedResultsIntermediate/{wildcards.PPI}/{wildcards.model}/{wildcards.group}/ \
-                                                    --df_path {input}
-        """
-
-rule plot_hits_at_kurve:
-    input:
-        avg_hits_at_k = expand('RankedResultsIntermediate/{PPI}/{model}/{group}/avg_hits_at_k.{filtered}.tsv', PPI='{PPI}', model='{model}', group=GROUPS, filtered=Filtered),
-    output:
-        'HitsAtKurvePlots/kurve.{PPI}.{model}.{filtered}.png'
-    params:
-        ppi_name = None
-    shell:
-        """
-        mkdir -p HitsAtKurvePlots
-        python Scripts/plot_hits_at_kurve.py --ppi_model_dir RankedResultsIntermediate/{wildcards.PPI}/{wildcards.model}/ \
-                                    --title {wildcards.PPI} \
-                                    --outfile {output}
-        """
-
-rule annotate_hits_at_kurve:
-    input:
-        avg_hits_at_k = 'RankedResultsIntermediate/{PPI}/{model}/{group}/avg_hits_at_k.{filtered}.tsv'
-    output:
-        'RankedResultsIntermediate/{PPI}/{model}/{group}/avg_hits_at_k.annotated.{filtered}.tsv'
-    run:
-        df = pd.read_csv(input[0], sep='\t')
-        df['group'] = wildcards.group
-        df['model'] = wildcards.model
-        df['ppi'] = wildcards.PPI
-        df.to_csv(output[0], sep='\t', index=False)
-
-rule combine_hits_at_kurve:
-    input:
-        expand('RankedResultsIntermediate/{PPI}/{model}/{group}/avg_hits_at_k.annotated.{filtered}.tsv', PPI=PPIs, model=Models, group=GROUPS, filtered='{filtered}')
-    output:
-        'RankedResultsIntermediate/combined_avg_hits_at_k.{filtered}.tsv'
-    run:
-        df = pd.concat([pd.read_csv(f, sep='\t') for f in input])
-        df.to_csv(output[0], sep='\t', index=False)
-
-# rule combine_edges_scored_by_query_term:
-#     input:
-#         expand('RankedResultsIntermediate/{PPI}/{model}/{group}/edges_scored_by_query_term.{filtered}.tsv', PPI=PPIs, model=Models, group=GROUPS, filtered='{filtered}')
-#     output:
-#         'RankedResultsIntermediate/combined_edges_scored_by_query_term.{filtered}.tsv'
-#     run:
-#         combined_df = None
-#         for f in input:
-#             df = pd.read_csv(f, sep='\t')
-#             df['model'] = f.split('/')[2]
-#             df['ppi'] = f.split('/')[1]
-#             df['group'] = f.split('/')[3]
-#             if combined_df == None:
-#                 combined_df = df
-#             else:
-#                 combined_df = pd.concat([combined_df, df])
-#         combined_df.to_csv(output[0], sep='\t', index=False)
-
+# -------------------------------------------------------- Result Plotting --------------------------------------------------------
 
 def count_group_occurances(group_terms,ppi_edge_list):
     count = 0
@@ -830,26 +378,30 @@ rule generate_stats_about_groups_and_ppi:
         df = pd.DataFrame(data)
         df.to_csv(output[0],sep='\t',index=False)
 
+
+
 rule plot_hist_by_model_and_kg:
     input: 
-        expand('GroupRankResults/{PPI}/{model}/AllResults/{group}.comparison_results.tsv', PPI='{PPI}', model='{model}', group=GROUPS),
+        expand('RankResults/{PPI}/{model}/{group}_ranking_data.tsv', PPI='{PPI}', model='{model}', group=GROUPS)
     output:
-        'GroupRankResultsHistograms/{PPI}.{model}.hist.png'
+        'RankResultsHistograms/{PPI}.{model}.hist.png'
+    params:
+        title = lambda wc: f'{PPIs2pretty[wc.PPI]} {wc.model}'
     shell:
         """
-        python Scripts/plot_hist_within_model_ppi.py -i GroupRankResults/{wildcards.PPI}/{wildcards.model}/AllResults/ -o {output}
+        mkdir -p RankResultsHistograms
+        python Scripts/plot_hist_within_model_ppi.py -i RankResults/{wildcards.PPI}/{wildcards.model}/ -o {output} -t "{params.title}"
         """
-
-# plot_percent_of_test_edge_at_k.py
 
 rule plot_percent_of_test_edge_at_k:
     input:
-        expand('GroupRankResults/{PPI}/{model}/AllResults/{group}.comparison_results.tsv', PPI='{PPI}', model='{model}', group=GROUPS),
+        expand('RankResults/{PPI}/{model}/{group}_ranking_data.tsv', PPI='{PPI}', model='{model}', group=GROUPS),
     output:
         'PercentTestAtK/{PPI}.{model}.percent_of_test_edges_at_k.png'
-    threads: 12
+    params:
+        title = lambda wc: f'{PPIs2pretty[wc.PPI]} {wc.model}'
     shell:
         """
         mkdir -p PercentTestAtK
-        python Scripts/plot_percent_of_test_edge_at_k.py -i GroupRankResults/{wildcards.PPI}/{wildcards.model}/AllResults/ -o {output} -t "{wildcards.PPI} {wildcards.model}"
+        python Scripts/plot_percent_of_test_edge_at_k.py -i RankResults/{wildcards.PPI}/{wildcards.model}/ -o {output} -t "{params.title}"
         """

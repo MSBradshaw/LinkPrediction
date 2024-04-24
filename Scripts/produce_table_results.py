@@ -12,7 +12,7 @@ from pykeen.metrics.ranking import HitsAtK
 from pykeen.evaluation import RankBasedEvaluator
 import json
 
-
+Ks = [5,10,15,25,50,100,200,300,400,500]
 
 
 def generate_results(model_path, test_path, grouping_path, output):
@@ -31,15 +31,16 @@ def generate_results(model_path, test_path, grouping_path, output):
             if line[0] in group or line[2] in group:
                 f.write('\t'.join(line)+'\n')
 
-
     test_triples_factory = TriplesFactory.from_path(tmp_test_edges)
-    # test_triples_factory = TriplesFactory.from_path(test_path)
     
     # remove the tmp file
     os.remove(tmp_test_edges)
+    metrics=[]
+    for k in Ks:
+        metrics.append(HitsAtK(k=k))
 
     # create a rankbased ev
-    evaluator = evaluator_resolver.make(RankBasedEvaluator, metrics=[HitsAtK(k=25),HitsAtK(k=50),HitsAtK(k=100)], clear_on_finalize=False)
+    evaluator = evaluator_resolver.make(RankBasedEvaluator, metrics=metrics, clear_on_finalize=False)
     evaluator.evaluate(model=loaded_model, mapped_triples=test_triples_factory.mapped_triples)
     res = evaluator.finalize().to_dict()
     with open(output, 'w') as f:
@@ -119,8 +120,13 @@ def get_group(group):
 
 def load_result_file(file:str,head_or_tail:str,ppi:str,group:str,model:str) -> pd.DataFrame:
     print(file)
-    results = {'hits_at_3':[],'hits_at_5':[],'hits_at_10':[],'hits_at_25':[],'hits_at_50':[],'hits_at_100':[],'inverse_harmonic_mean_rank':[],'group':[],'ppi':[],'model':[]}
-    categories = ['hits_at_3','hits_at_5','hits_at_10','hits_at_25','hits_at_50','hits_at_100','inverse_harmonic_mean_rank']
+    results = {'inverse_harmonic_mean_rank':[],'group':[],'ppi':[],'model':[]}
+    categories = ['inverse_harmonic_mean_rank']
+    # add a hits_at_k key to results and categories for every k in Ks
+    for k in Ks:
+        results[f'hits_at_{k}'] = []
+        categories.append(f'hits_at_{k}')
+    
     for line in open(file,'r'):
         line = line.strip().split('\t')
         if head_or_tail not in line[0]:
@@ -140,8 +146,6 @@ Models = ['TransE','RotatE','ComplEx']
 Models = ['TransE','RotatE'] # no comple because I dont have/wont ever have string results for it
 GROUPS = ['Cancer', 'PedCancer', 'European', 'EastAsian', 'Latino', 'African', 'Female', 'Male', 'Random','UltraRareDisease','RareDisease','RandomDiseases']
 
-metrics = ['{head_or_tail}.realistic.inverse_harmonic_mean_rank']
-
 # disease predict head, genes predict tail
 group_to_head_tail  = {'Cancer':'tail', 'PedCancer':'tail', 'European':'head', 'EastAsian':'head', 'Latino':'head', 'African':'head', 'Female':'tail', 'Male':'tail', 'Random':'tail','UltraRareDisease':'head','RareDisease':'head','RandomDiseases':'head'}
 ppi_to_pretty_name = {'original_monarch':'Monarch','HuRI':'HuRI','HuRI_filtered':'HuRI Filtered','monarch_filtered':'Monarch Filtered','string_filtered_t25':'String 25% Filtered', 'string_filtered_t50':'String 50% Filtered','string_filtered_t100':'String Filtered', 'string_t25':'String 25%', 'string_t50':'String 50%', 'string_t100':'String'}
@@ -158,14 +162,15 @@ for ppi in PPIs:
             # check if output exists, if it does, skip
             if os.path.exists(output):
                 print('\tAlready done, loading ')
-                tmp_df = load_result_file(output,group_to_head_tail[group],ppi,group,model)
-                if all_results is None:
-                    all_results = tmp_df
-                else:
-                    all_results = pd.concat([all_results, tmp_df])
             else:
                 print('\tProducing results')
                 generate_results(model_path,test_el,group_path,output)
+            
+            tmp_df = load_result_file(output,group_to_head_tail[group],ppi,group,model)
+            if all_results is None:
+                all_results = tmp_df
+            else:
+                all_results = pd.concat([all_results, tmp_df])
 
 # write all results to file
 all_results.to_csv('TableResults/all_results.tsv', sep='\t', index=False)
@@ -175,4 +180,5 @@ for group in GROUPS:
     tmp_df = all_results[all_results['group'] == group]
     tmp_df['ppi'] = tmp_df['ppi'].apply(lambda x: ppi_to_pretty_name[x])
     tmp_df.to_latex(f'TableResults/Latex/{group}.latex_table.txt',index=False)
+    tmp_df.to_csv(f'TableResults/Tables/{group}.tsv',index=False,sep='\t')
     

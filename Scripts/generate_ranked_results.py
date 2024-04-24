@@ -19,7 +19,7 @@ warnings.simplefilter(action="ignore", category=SettingWithCopyWarning)
 # add the current dir to the path
 import sys
 sys.path.append('Scripts/')
-from compare_groups_test_omatic import get_scores_for_edges, read_terms_from_file, load_degs, get_triples, annotate
+from compare_groups_test_omatic import read_terms_from_file, load_degs, get_triples, annotate
 
 def get_args():
     parser = argparse.ArgumentParser(description='Run the test-omatic experiment')

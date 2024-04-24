@@ -24,8 +24,8 @@ study_name = "TransE_monarch_kg_{}".format(job_id)  # Unique identifier of the s
 storage_name = "sqlite:///{}.db".format(study_name) # this for a sqlite database in the current working directory
 
 hpo_pipeline_result = hpo_pipeline(
-    # n_trials=30,
-    n_trials=4,
+     n_trials=30,
+    # n_trials=4,
     # sampler=RandomSampler, # this was the original one I used, commenting out to try something new
     sampler=QMCSampler,
 
