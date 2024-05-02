@@ -33,11 +33,10 @@ print("Median:", median)
 
 
 """
-python del.py PyKeenOut/complex_monarch_kg_filtered_1/trials.tsv
-python del.py PyKeenOut/rotate_monarch_kg_filtered_1/trials.tsv
-python del.py PyKeenOut/transe_monarch_kg_filtered_1/trials.tsv
-
-python del.py PyKeenOut/ComplEx_monarch_kg_1/trials.tsv
-python del.py PyKeenOut/rotate_monarch_kg_1/trials.tsv
-python del.py PyKeenOut/TransE_monarch_kg_1/trials.tsv
+python trail_time_stats.py PyKeenOut/complex_monarch_kg_filtered_1/trials.tsv
+python trail_time_stats.py PyKeenOut/rotate_monarch_kg_filtered_1/trials.tsv
+python trail_time_stats.py PyKeenOut/transe_monarch_kg_filtered_1/trials.tsv
+python trail_time_stats.py PyKeenOut/ComplEx_monarch_kg_1/trials.tsv
+python trail_time_stats.py PyKeenOut/rotate_monarch_kg_1/trials.tsv
+python trail_time_stats.py PyKeenOut/TransE_monarch_kg_1/trials.tsv
 """
